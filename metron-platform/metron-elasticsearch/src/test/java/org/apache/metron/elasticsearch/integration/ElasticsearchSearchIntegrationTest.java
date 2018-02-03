@@ -17,29 +17,30 @@
  */
 package org.apache.metron.elasticsearch.integration;
 
+
+import java.io.File;
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 import org.adrianwalker.multilinestring.Multiline;
+import org.apache.metron.common.utils.JSONUtils;
 import org.apache.metron.elasticsearch.dao.ElasticsearchDao;
 import org.apache.metron.elasticsearch.integration.components.ElasticSearchComponent;
 import org.apache.metron.indexing.dao.AccessConfig;
 import org.apache.metron.indexing.dao.IndexDao;
 import org.apache.metron.indexing.dao.SearchIntegrationTest;
+import org.apache.metron.indexing.dao.search.GetRequest;
 import org.apache.metron.integration.InMemoryComponent;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.action.support.WriteRequest;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.HashMap;
-import java.util.concurrent.ExecutionException;
+import org.junit.Test;
 
 public class ElasticsearchSearchIntegrationTest extends SearchIntegrationTest {
 
@@ -53,8 +54,11 @@ public class ElasticsearchSearchIntegrationTest extends SearchIntegrationTest {
    * "bro_doc": {
    *   "properties": {
    *     "source:type": {
-   *        "type": "string",
-   *        "index": "not_analyzed"
+   *        "type": "text",
+   *        "fielddata" : "true"
+   *     },
+   *     "guid" : {
+   *        "type" : "keyword"
    *     },
    *     "ip_src_addr": {
    *        "type": "ip"
@@ -82,10 +86,12 @@ public class ElasticsearchSearchIntegrationTest extends SearchIntegrationTest {
    *        "type": "geo_point"
    *     },
    *     "bro_field": {
-   *        "type": "string"
+   *        "type": "text",
+   *        "fielddata" : "true"
    *     },
    *     "duplicate_name_field": {
-   *        "type": "string"
+   *        "type": "text",
+   *        "fielddata" : "true"
    *     },
    *     "alert": {
    *         "type": "nested"
@@ -102,8 +108,11 @@ public class ElasticsearchSearchIntegrationTest extends SearchIntegrationTest {
    *  "snort_doc": {
    *     "properties": {
    *        "source:type": {
-   *          "type": "string",
-   *          "index": "not_analyzed"
+   *          "type": "text",
+   *          "fielddata" : "true"
+   *        },
+   *        "guid" : {
+   *          "type" : "keyword"
    *        },
    *        "ip_src_addr": {
    *          "type": "ip"
@@ -151,16 +160,20 @@ public class ElasticsearchSearchIntegrationTest extends SearchIntegrationTest {
 
   /**
    * {
-   * "metaalert_doc": {
-   *   "properties": {
-   *     "source:type": { "type": "string" },
-   *     "alert": { "type": "nested"}
-   *   }
-   * }
+   * "bro_doc_default": {
+   *   "dynamic_templates": [{
+   *     "strings": {
+   *       "match_mapping_type": "string",
+   *       "mapping": {
+   *         "type": "text"
+   *       }
+   *     }
+   *   }]
+   *  }
    * }
    */
   @Multiline
-  private static String metaAlertTypeMappings;
+  private static String broDefaultStringMappings;
 
   @Override
   protected IndexDao createDao() throws Exception {
@@ -196,17 +209,16 @@ public class ElasticsearchSearchIntegrationTest extends SearchIntegrationTest {
       throws ParseException, IOException, ExecutionException, InterruptedException {
     ElasticSearchComponent es = (ElasticSearchComponent)indexComponent;
     es.getClient().admin().indices().prepareCreate("bro_index_2017.01.01.01")
-            .addMapping("bro_doc", broTypeMappings).get();
+            .addMapping("bro_doc", broTypeMappings).addMapping("bro_doc_default", broDefaultStringMappings).get();
     es.getClient().admin().indices().prepareCreate("snort_index_2017.01.01.02")
             .addMapping("snort_doc", snortTypeMappings).get();
-    es.getClient().admin().indices().prepareCreate("metaalert_index")
-        .addMapping("metaalert_doc", metaAlertTypeMappings).get();
 
-    BulkRequestBuilder bulkRequest = es.getClient().prepareBulk().setRefresh(true);
+    BulkRequestBuilder bulkRequest = es.getClient().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL);
     JSONArray broArray = (JSONArray) new JSONParser().parse(broData);
     for(Object o: broArray) {
       JSONObject jsonObject = (JSONObject) o;
       IndexRequestBuilder indexRequestBuilder = es.getClient().prepareIndex("bro_index_2017.01.01.01", "bro_doc");
+      indexRequestBuilder = indexRequestBuilder.setId((String) jsonObject.get("guid"));
       indexRequestBuilder = indexRequestBuilder.setSource(jsonObject.toJSONString());
       indexRequestBuilder = indexRequestBuilder.setTimestamp(jsonObject.get("timestamp").toString());
       bulkRequest.add(indexRequestBuilder);
@@ -215,68 +227,16 @@ public class ElasticsearchSearchIntegrationTest extends SearchIntegrationTest {
     for(Object o: snortArray) {
       JSONObject jsonObject = (JSONObject) o;
       IndexRequestBuilder indexRequestBuilder = es.getClient().prepareIndex("snort_index_2017.01.01.02", "snort_doc");
+      indexRequestBuilder = indexRequestBuilder.setId((String) jsonObject.get("guid"));
       indexRequestBuilder = indexRequestBuilder.setSource(jsonObject.toJSONString());
       indexRequestBuilder = indexRequestBuilder.setTimestamp(jsonObject.get("timestamp").toString());
-      bulkRequest.add(indexRequestBuilder);
-    }
-    JSONArray metaAlertArray = (JSONArray) new JSONParser().parse(metaAlertData);
-    for(Object o: metaAlertArray) {
-      JSONObject jsonObject = (JSONObject) o;
-      IndexRequestBuilder indexRequestBuilder = es.getClient().prepareIndex("metaalert_index", "metaalert_doc");
-      indexRequestBuilder = indexRequestBuilder.setSource(jsonObject.toJSONString());
       bulkRequest.add(indexRequestBuilder);
     }
     BulkResponse bulkResponse = bulkRequest.execute().actionGet();
     if (bulkResponse.hasFailures()) {
       throw new RuntimeException("Failed to index test data");
     }
-
-    SearchResponse broDocs = es.getClient()
-        .prepareSearch("bro_index_2017.01.01.01")
-        .setTypes("bro_doc")
-        .setQuery(QueryBuilders.matchAllQuery())
-        .get();
-    // We're changing the _id field, we need to create a copy and delete the original.
-    for (SearchHit hit : broDocs.getHits()) {
-      // Bro GUIDs to collide while using the standard analyzer
-      // Use timestamp as part of guid because query may not return in order each time
-      IndexRequest indexRequest = new IndexRequest()
-          .index("bro_index_2017.01.01.01")
-          .type("bro_doc")
-          .id("bro-" + hit.getSource().get("timestamp"))
-          .source(hit.getSource());
-      es.getClient().index(indexRequest).get();
-
-      // Delete the original
-      es.getClient()
-          .prepareDelete("bro_index_2017.01.01.01", "bro_doc", hit.getId())
-          .get();
-    }
-
-    // Wait until everything is updated
-    // Assume true until proven otherwise.
-    boolean allUpdated = true;
-    for (int t = 0; t < MAX_RETRIES; ++t, Thread.sleep(SLEEP_MS)) {
-      allUpdated = true;
-      SearchResponse response = es.getClient()
-          .prepareSearch("bro_index_2017.01.01.01")
-          .setTypes("bro_doc")
-          .setQuery(QueryBuilders.matchAllQuery())
-          .get();
-      if (response.getHits().getTotalHits() == 0) {
-        throw new IllegalStateException("Bro index is empty. No docs to validate were updated");
-      }
-      for (SearchHit hit : response.getHits()) {
-        if (!hit.getId().startsWith("bro-")) {
-          allUpdated = false;
-        }
-      }
-      if (allUpdated) {
-        break;
-      }
-    }
-    if (!allUpdated) {
-      throw new IllegalStateException("Unable to update Elasticsearch ids properly");
-    }
   }
+
+
 }
