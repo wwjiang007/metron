@@ -17,27 +17,9 @@
  */
 package org.apache.metron.rest.service.impl;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.doThrow;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoMoreInteractions;
-import static org.mockito.Mockito.verifyZeroInteractions;
-import static org.mockito.Mockito.when;
-import static org.powermock.api.mockito.PowerMockito.mock;
-
 import com.google.common.collect.Lists;
 import com.google.common.collect.Maps;
 import com.google.common.collect.Sets;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
 import kafka.admin.AdminOperationException;
 import kafka.admin.AdminUtils$;
 import kafka.admin.RackAwareMode;
@@ -53,24 +35,18 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.metron.rest.RestException;
 import org.apache.metron.rest.model.KafkaTopic;
 import org.apache.metron.rest.service.KafkaService;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
-import org.junit.runner.RunWith;
-import org.powermock.core.classloader.annotations.PowerMockIgnore;
-import org.powermock.core.classloader.annotations.PrepareForTest;
-import org.powermock.modules.junit4.PowerMockRunner;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.kafka.core.ConsumerFactory;
 
-@SuppressWarnings("unchecked")
-@RunWith(PowerMockRunner.class)
-@PowerMockIgnore("javax.management.*") // resolve classloader conflict
-@PrepareForTest({AdminUtils$.class})
-public class KafkaServiceImplTest {
-  @Rule
-  public final ExpectedException exception = ExpectedException.none();
+import java.util.*;
 
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
+
+
+@SuppressWarnings("unchecked")
+public class KafkaServiceImplTest {
   private ZkUtils zkUtils;
   private KafkaConsumer<String, String> kafkaConsumer;
   private KafkaProducer<String, String> kafkaProducer;
@@ -78,6 +54,7 @@ public class KafkaServiceImplTest {
   private AdminUtils$ adminUtils;
 
   private KafkaService kafkaService;
+
 
   private static final KafkaTopic VALID_KAFKA_TOPIC = new KafkaTopic() {{
     setReplicationFactor(2);
@@ -87,8 +64,8 @@ public class KafkaServiceImplTest {
   }};
 
   @SuppressWarnings("unchecked")
-  @Before
-  public void setUp() throws Exception {
+  @BeforeEach
+  public void setUp() {
     zkUtils = mock(ZkUtils.class);
     kafkaConsumerFactory = mock(ConsumerFactory.class);
     kafkaConsumer = mock(KafkaConsumer.class);
@@ -101,23 +78,21 @@ public class KafkaServiceImplTest {
   }
 
   @Test
-  public void listTopicsHappyPathWithListTopicsReturningNull() throws Exception {
-    final Map<String, List<PartitionInfo>> topics = null;
-
-    when(kafkaConsumer.listTopics()).thenReturn(topics);
+  public void listTopicsHappyPathWithListTopicsReturningNull() {
+    when(kafkaConsumer.listTopics()).thenReturn(null);
 
     final Set<String> listedTopics = kafkaService.listTopics();
 
     assertEquals(Sets.newHashSet(), listedTopics);
 
-    verifyZeroInteractions(zkUtils);
+    verifyNoInteractions(zkUtils);
     verify(kafkaConsumer).listTopics();
     verify(kafkaConsumer).close();
     verifyNoMoreInteractions(kafkaConsumer, zkUtils, adminUtils);
   }
 
   @Test
-  public void listTopicsHappyPathWithListTopicsReturningEmptyMap() throws Exception {
+  public void listTopicsHappyPathWithListTopicsReturningEmptyMap() {
     final Map<String, List<PartitionInfo>> topics = new HashMap<>();
 
     when(kafkaConsumer.listTopics()).thenReturn(topics);
@@ -126,14 +101,14 @@ public class KafkaServiceImplTest {
 
     assertEquals(Sets.newHashSet(), listedTopics);
 
-    verifyZeroInteractions(zkUtils);
+    verifyNoInteractions(zkUtils);
     verify(kafkaConsumer).listTopics();
     verify(kafkaConsumer).close();
     verifyNoMoreInteractions(kafkaConsumer, zkUtils);
   }
 
   @Test
-  public void listTopicsHappyPath() throws Exception {
+  public void listTopicsHappyPath() {
     final Map<String, List<PartitionInfo>> topics = new HashMap<>();
     topics.put("topic1", Lists.newArrayList());
     topics.put("topic2", Lists.newArrayList());
@@ -145,14 +120,14 @@ public class KafkaServiceImplTest {
 
     assertEquals(Sets.newHashSet("topic1", "topic2", "topic3"), listedTopics);
 
-    verifyZeroInteractions(zkUtils);
+    verifyNoInteractions(zkUtils);
     verify(kafkaConsumer).listTopics();
     verify(kafkaConsumer).close();
     verifyNoMoreInteractions(kafkaConsumer, zkUtils);
   }
 
   @Test
-  public void listTopicsShouldProperlyRemoveOffsetTopic() throws Exception {
+  public void listTopicsShouldProperlyRemoveOffsetTopic() {
     final Map<String, List<PartitionInfo>> topics = new HashMap<>();
     topics.put("topic1", Lists.newArrayList());
     topics.put("topic2", Lists.newArrayList());
@@ -165,26 +140,26 @@ public class KafkaServiceImplTest {
 
     assertEquals(Sets.newHashSet("topic1", "topic2", "topic3"), listedTopics);
 
-    verifyZeroInteractions(zkUtils);
+    verifyNoInteractions(zkUtils);
     verify(kafkaConsumer).listTopics();
     verify(kafkaConsumer).close();
     verifyNoMoreInteractions(kafkaConsumer, zkUtils);
   }
 
   @Test
-  public void deletingTopicThatDoesNotExistShouldReturnFalse() throws Exception {
+  public void deletingTopicThatDoesNotExistShouldReturnFalse() {
     when(kafkaConsumer.listTopics()).thenReturn(Maps.newHashMap());
 
     assertFalse(kafkaService.deleteTopic("non_existent_topic"));
 
-    verifyZeroInteractions(zkUtils);
+    verifyNoInteractions(zkUtils);
     verify(kafkaConsumer).listTopics();
     verify(kafkaConsumer).close();
     verifyNoMoreInteractions(kafkaConsumer, zkUtils);
   }
 
   @Test
-  public void deletingTopicThatExistShouldReturnTrue() throws Exception {
+  public void deletingTopicThatExistShouldReturnTrue() {
     final Map<String, List<PartitionInfo>> topics = new HashMap<>();
     topics.put("non_existent_topic", Lists.newArrayList());
 
@@ -199,7 +174,7 @@ public class KafkaServiceImplTest {
   }
 
   @Test
-  public void makeSureDeletingTopicReturnsFalseWhenNoTopicsExist() throws Exception {
+  public void makeSureDeletingTopicReturnsFalseWhenNoTopicsExist() {
     final Map<String, List<PartitionInfo>> topics = null;
 
     when(kafkaConsumer.listTopics()).thenReturn(topics);
@@ -212,7 +187,7 @@ public class KafkaServiceImplTest {
   }
 
   @Test
-  public void getTopicShouldProperlyMapTopicToKafkaTopic() throws Exception {
+  public void getTopicShouldProperlyMapTopicToKafkaTopic() {
     final PartitionInfo partitionInfo = mock(PartitionInfo.class);
     when(partitionInfo.replicas()).thenReturn(new Node[] {new Node(1, "host", 8080)});
 
@@ -234,34 +209,30 @@ public class KafkaServiceImplTest {
   }
 
   @Test
-  public void getTopicShouldProperlyHandleTopicsThatDontExist() throws Exception {
+  public void getTopicShouldProperlyHandleTopicsThatDontExist() {
     final Map<String, List<PartitionInfo>> topics = new HashMap<>();
     topics.put("t1", Lists.newArrayList());
 
     when(kafkaConsumer.listTopics()).thenReturn(topics);
     when(kafkaConsumer.partitionsFor("t")).thenReturn(Lists.newArrayList());
 
-    assertEquals(null, kafkaService.getTopic("t"));
+    assertNull(kafkaService.getTopic("t"));
 
     verify(kafkaConsumer).listTopics();
     verify(kafkaConsumer, times(0)).partitionsFor("t");
     verify(kafkaConsumer).close();
-    verifyZeroInteractions(zkUtils);
+    verifyNoInteractions(zkUtils);
     verifyNoMoreInteractions(kafkaConsumer);
   }
 
   @Test
-  public void createTopicShouldFailIfReplicationFactorIsGreaterThanAvailableBrokers() throws Exception {
-    exception.expect(RestException.class);
+  public void createTopicShouldFailIfReplicationFactorIsGreaterThanAvailableBrokers() {
     doThrow(AdminOperationException.class).when(adminUtils).createTopic(eq(zkUtils), eq("t"), eq(1), eq(2), eq(new Properties()), eq(RackAwareMode.Disabled$.MODULE$));
-    kafkaService.createTopic(VALID_KAFKA_TOPIC);
-
+    assertThrows(RestException.class, () -> kafkaService.createTopic(VALID_KAFKA_TOPIC));
   }
 
   @Test
-  public void whenAdminUtilsThrowsAdminOperationExceptionCreateTopicShouldProperlyWrapExceptionInRestException() throws Exception {
-    exception.expect(RestException.class);
-
+  public void whenAdminUtilsThrowsAdminOperationExceptionCreateTopicShouldProperlyWrapExceptionInRestException() {
     final Map<String, List<PartitionInfo>> topics = new HashMap<>();
     topics.put("1", new ArrayList<>());
 
@@ -269,11 +240,11 @@ public class KafkaServiceImplTest {
 
     doThrow(AdminOperationException.class).when(adminUtils).createTopic(eq(zkUtils), eq("t"), eq(1), eq(2), eq(new Properties()), eq(RackAwareMode.Disabled$.MODULE$));
 
-    kafkaService.createTopic(VALID_KAFKA_TOPIC);
+    assertThrows(RestException.class, () -> kafkaService.createTopic(VALID_KAFKA_TOPIC));
   }
 
   @Test
-  public void getSampleMessageProperlyReturnsAMessageFromAGivenKafkaTopic() throws Exception {
+  public void getSampleMessageProperlyReturnsAMessageFromAGivenKafkaTopic() {
     final String topicName = "t";
     final Node host = new Node(1, "host", 8080);
     final Node[] replicas = {host};
@@ -300,7 +271,7 @@ public class KafkaServiceImplTest {
     verify(kafkaConsumer, times(2)).position(topicPartition);
     verify(kafkaConsumer).seek(topicPartition, 0);
 
-    verifyZeroInteractions(zkUtils, adminUtils);
+    verifyNoInteractions(zkUtils, adminUtils);
   }
 
   @Test
@@ -312,6 +283,14 @@ public class KafkaServiceImplTest {
 
     String expectedMessage = "{\"field\":\"value\"}";
     verify(kafkaProducer).send(new ProducerRecord<>(topicName, expectedMessage));
-    verifyZeroInteractions(kafkaProducer);
+    verifyNoMoreInteractions(kafkaProducer);
   }
+
+  @Test
+  public void addACLtoNonExistingTopicShouldReturnFalse() {
+    when(kafkaConsumer.listTopics()).thenReturn(Maps.newHashMap());
+    assertFalse(kafkaService.addACLToCurrentUser("non_existent_topic"));
+  }
+
+
 }

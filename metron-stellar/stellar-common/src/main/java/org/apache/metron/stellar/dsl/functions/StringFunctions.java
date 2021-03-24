@@ -19,22 +19,20 @@
 package org.apache.metron.stellar.dsl.functions;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.base.Joiner;
 import com.google.common.base.Splitter;
 import com.google.common.collect.Iterables;
-import org.apache.commons.lang3.StringUtils;
-import org.apache.metron.stellar.common.utils.JSONUtils;
-import org.apache.metron.stellar.dsl.BaseStellarFunction;
-import org.apache.metron.stellar.dsl.ParseException;
-import org.apache.metron.stellar.dsl.Stellar;
-import org.apache.metron.stellar.common.utils.ConversionUtils;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import org.apache.commons.lang3.StringUtils;
+import org.apache.metron.stellar.common.utils.ConversionUtils;
+import org.apache.metron.stellar.common.utils.JSONUtils;
+import org.apache.metron.stellar.dsl.BaseStellarFunction;
+import org.apache.metron.stellar.dsl.ParseException;
+import org.apache.metron.stellar.dsl.Stellar;
 
 public class StringFunctions {
 
@@ -133,14 +131,15 @@ public class StringFunctions {
   }
 
   @Stellar( name="JOIN"
-          , description="Joins the components in the list of strings with the specified delimiter."
-          , params = { "list - List of strings", "delim - String delimiter"}
+          , description="Joins the non-null items in the iterable as strings with the specified delimiter. Null items are dropped."
+          , params = { "iterable - Java iterable (e.g. List, LinkedHashSet, etc.) of items treated as strings", "delim - String delimiter"}
           , returns = "String"
           )
   public static class JoinFunction extends BaseStellarFunction {
     @Override
+    @SuppressWarnings("unchecked")
     public Object apply(List<Object> args) {
-      List<Object> arg1 = (List<Object>) args.get(0);
+      Iterable<Object> arg1 = (Iterable<Object>) args.get(0);
       String delim = (String) args.get(1);
       return Joiner.on(delim).join(Iterables.filter(arg1, x -> x != null));
     }
@@ -153,10 +152,11 @@ public class StringFunctions {
           )
   public static class SplitFunction extends BaseStellarFunction {
     @Override
+    @SuppressWarnings("unchecked")
     public Object apply(List<Object> args) {
       List ret = new ArrayList();
       Object o1 = args.get(0);
-      if(o1 != null) {
+      if (o1 != null) {
         String arg1 = o1.toString();
         String delim = (String) args.get(1);
         Iterables.addAll(ret, Splitter.on(delim).split(arg1));
@@ -165,43 +165,46 @@ public class StringFunctions {
     }
   }
 
-  @Stellar(name="GET_LAST"
-          , description="Returns the last element of the list"
-          , params = { "input - List"}
-          , returns = "Last element of the list"
+  @Stellar(name = "GET_LAST",
+            description = "Returns the last element of the list",
+            params = { "input - List"},
+            returns = "Last element of the list"
           )
   public static class GetLast extends BaseStellarFunction {
     @Override
+    @SuppressWarnings("unchecked")
     public Object apply(List<Object> args) {
       List<Object> arg1 = (List<Object>) args.get(0);
       return Iterables.getLast(arg1, null);
     }
   }
 
-  @Stellar(name="GET_FIRST"
-          , description="Returns the first element of the list"
-          , params = { "input - List"}
-          , returns = "First element of the list"
+  @Stellar(name = "GET_FIRST",
+            description = "Returns the first element of the list",
+            params = { "input - List"},
+            returns = "First element of the list"
           )
   public static class GetFirst extends BaseStellarFunction {
     @Override
+    @SuppressWarnings("unchecked")
     public Object apply(List<Object> args) {
       List<Object> arg1 = (List<Object>) args.get(0);
       return Iterables.getFirst(arg1, null);
     }
   }
 
-  @Stellar(name="GET"
-          , description="Returns the i'th element of the list "
-          , params = { "input - List", "i - The index (0-based)"}
-          , returns = "First element of the list"
+  @Stellar(name = "GET",
+            description = "Returns the i'th element of the list ",
+            params = { "input - List", "i - The index (0-based)"},
+            returns = "First element of the list"
           )
   public static class Get extends BaseStellarFunction {
     @Override
+    @SuppressWarnings("unchecked")
     public Object apply(List<Object> args) {
       List<Object> arg1 = (List<Object>) args.get(0);
       int offset = (Integer) args.get(1);
-      if(offset < arg1.size()) {
+      if (offset < arg1.size()) {
         return Iterables.get(arg1, offset);
       }
       return null;

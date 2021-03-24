@@ -159,6 +159,45 @@
         </component>
 
         <component>
+          <name>METRON_PCAP</name>
+          <displayName>Metron PCAP</displayName>
+          <category>MASTER</category>
+          <cardinality>1</cardinality>
+          <versionAdvertised>false</versionAdvertised>
+          <dependencies>
+            <dependency>
+              <name>HDFS/HDFS_CLIENT</name>
+              <scope>host</scope>
+              <auto-deploy>
+                <enabled>true</enabled>
+              </auto-deploy>
+            </dependency>
+            <dependency>
+              <name>ZOOKEEPER/ZOOKEEPER_SERVER</name>
+              <scope>cluster</scope>
+              <auto-deploy>
+                <enabled>true</enabled>
+              </auto-deploy>
+            </dependency>
+            <dependency>
+              <name>KAFKA/KAFKA_BROKER</name>
+              <scope>host</scope>
+              <auto-deploy>
+                <enabled>true</enabled>
+              </auto-deploy>
+            </dependency>
+          </dependencies>
+          <commandScript>
+            <script>scripts/pcap_master.py</script>
+            <scriptType>PYTHON</scriptType>
+            <timeout>600</timeout>
+          </commandScript>
+          <configuration-dependencies>
+            <config-type>metron-pcap-env</config-type>
+          </configuration-dependencies>
+        </component>
+
+        <component>
           <name>METRON_INDEXING</name>
           <displayName>Metron Indexing</displayName>
           <category>MASTER</category>
@@ -211,6 +250,15 @@
                 </commandScript>
               </customCommand>
               <customCommand>
+                <name>KIBANA_DASHBOARD_INSTALL</name>
+                <background>false</background>
+                <commandScript>
+                  <script>scripts/indexing_master.py</script>
+                  <scriptType>PYTHON</scriptType>
+                  <timeout>600</timeout>
+                </commandScript>
+              </customCommand>
+              <customCommand>
                 <name>ZEPPELIN_NOTEBOOK_IMPORT</name>
                 <commandScript>
                   <script>scripts/indexing_master.py</script>
@@ -241,6 +289,13 @@
               </auto-deploy>
             </dependency>
             <dependency>
+              <name>HBASE/HBASE_CLIENT</name>
+              <scope>host</scope>
+              <auto-deploy>
+                  <enabled>true</enabled>
+              </auto-deploy>
+            </dependency>
+            <dependency>
               <name>ZOOKEEPER/ZOOKEEPER_SERVER</name>
               <scope>cluster</scope>
               <auto-deploy>
@@ -267,7 +322,10 @@
             <scriptType>PYTHON</scriptType>
           </commandScript>
           <configuration-dependencies>
+            <config-type>metron-security-env</config-type>
+            <config-type>metron-indexing-env</config-type>
             <config-type>metron-rest-env</config-type>
+            <config-type>metron-pcap-env</config-type>
           </configuration-dependencies>
         </component>
 
@@ -314,8 +372,10 @@
             <scriptType>PYTHON</scriptType>
           </commandScript>
             <configuration-dependencies>
+                <config-type>metron-security-env</config-type>
                 <config-type>metron-rest-env</config-type>
                 <config-type>metron-management-ui-env</config-type>
+                <config-type>metron-alerts-ui-env</config-type>
             </configuration-dependencies>
         </component>
         <component>
@@ -340,7 +400,9 @@
             <scriptType>PYTHON</scriptType>
           </commandScript>
           <configuration-dependencies>
+            <config-type>metron-security-env</config-type>
             <config-type>metron-rest-env</config-type>
+            <config-type>metron-management-ui-env</config-type>
             <config-type>metron-alerts-ui-env</config-type>
           </configuration-dependencies>
         </component>
@@ -356,6 +418,9 @@
             <scriptType>PYTHON</scriptType>
             <timeout>1200</timeout>
           </commandScript>
+          <configuration-dependencies>
+            <config-type>metron-security-env</config-type>
+          </configuration-dependencies>
         </component>
 
       </components>
@@ -378,22 +443,49 @@
               <name>metron-data-management</name>
             </package>
             <package>
+              <name>metron-hbase-server</name>
+            </package>
+            <package>
               <name>metron-management</name>
+            </package>
+            <package>
+              <name>metron-parsers-common</name>
             </package>
             <package>
               <name>metron-parsers</name>
             </package>
             <package>
-              <name>metron-enrichment</name>
+              <name>metron-parsing-storm</name>
             </package>
             <package>
-              <name>metron-profiler</name>
+              <name>metron-enrichment-common</name>
             </package>
             <package>
-              <name>metron-indexing</name>
+              <name>metron-enrichment-storm</name>
             </package>
             <package>
-              <name>metron-elasticsearch</name>
+              <name>metron-profiler-storm</name>
+            </package>
+            <package>
+              <name>metron-profiler-spark</name>
+            </package>
+            <package>
+              <name>metron-profiler-repl</name>
+            </package>
+            <package>
+              <name>metron-indexing-common</name>
+            </package>
+            <package>
+              <name>metron-indexing-storm</name>
+            </package>
+            <package>
+              <name>metron-elasticsearch-storm</name>
+            </package>
+            <package>
+              <name>metron-solr-common</name>
+            </package>
+            <package>
+              <name>metron-solr-storm</name>
             </package>
             <package>
               <name>metron-pcap</name>
@@ -412,6 +504,12 @@
             </package>
             <package>
               <name>metron-maas-service</name>
+            </package>
+            <package>
+              <name>metron-performance</name>
+            </package>
+            <package>
+              <name>stellar-common</name>
             </package>
           </packages>
         </osSpecific>
@@ -447,6 +545,7 @@
         <config-type>kafka-broker</config-type>
         <config-type>kafka-env</config-type>
         <config-type>zeppelin-config</config-type>
+        <config-type>metron-client-jaas-conf</config-type>
       </configuration-dependencies>
       <restartRequiredAfterChange>true</restartRequiredAfterChange>
       <quickLinksConfigurations>

@@ -22,44 +22,44 @@ import org.adrianwalker.multilinestring.Multiline;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.hadoop.hbase.client.Get;
 import org.apache.hadoop.hbase.client.Result;
-import org.apache.metron.hbase.mock.MockHTable;
 import org.apache.metron.hbase.mock.MockHBaseTableProvider;
+import org.apache.metron.hbase.mock.MockHTable;
 import org.apache.metron.indexing.dao.HBaseDao;
-import org.apache.metron.indexing.dao.MetaAlertDao;
 import org.apache.metron.indexing.dao.SearchIntegrationTest;
+import org.apache.metron.indexing.dao.update.CommentAddRemoveRequest;
 import org.apache.metron.rest.service.UpdateService;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.ResultActions;
+import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
+import java.nio.charset.StandardCharsets;
 import java.util.NavigableMap;
 
 import static org.apache.metron.rest.MetronRestConstants.TEST_PROFILE;
-import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-@RunWith(SpringRunner.class)
+@ExtendWith(SpringExtension.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles(TEST_PROFILE)
 public class UpdateControllerIntegrationTest extends DaoControllerTest {
   @Autowired
-  private UpdateService searchService;
+  private UpdateService updateService;
   @Autowired
   public CuratorFramework client;
 
@@ -72,6 +72,7 @@ public class UpdateControllerIntegrationTest extends DaoControllerTest {
   private String searchUrl = "/api/v1/search";
   private String user = "user";
   private String password = "password";
+  private String metaAlertIndex = "metaalert_index";
 
   /**
    {
@@ -102,93 +103,127 @@ public class UpdateControllerIntegrationTest extends DaoControllerTest {
    {
      "guid" : "bro_2",
      "sensorType" : "bro",
-     "replacement" : {
-       "source:type": "bro",
-       "guid" : "bro_2",
-       "ip_src_addr":"192.168.1.2",
-       "ip_src_port": 8009,
-       "timestamp":200,
-       "rejected":false
-      }
+     "comment": "test_comment",
+     "username" : "test_username",
+     "timestamp":0
    }
    */
   @Multiline
-  public static String replace;
+  public static String addComment;
 
-  @Before
+  /**
+   {
+   "guid" : "bro_2",
+   "sensorType" : "bro",
+   "comment": "test_comment",
+   "username" : "test_username",
+   "timestamp":0
+   }
+   */
+  @Multiline
+  public static String removeComment;
+
+  @BeforeEach
   public void setup() throws Exception {
     this.mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).apply(springSecurity()).build();
     ImmutableMap<String, String> testData = ImmutableMap.of(
         "bro_index_2017.01.01.01", SearchIntegrationTest.broData,
         "snort_index_2017.01.01.01", SearchIntegrationTest.snortData,
-        MetaAlertDao.METAALERTS_INDEX, MetaAlertControllerIntegrationTest.metaAlertData
+        metaAlertIndex, MetaAlertControllerIntegrationTest.metaAlertData
     );
     loadTestData(testData);
   }
 
   @Test
-  public void test() throws Exception {
+  public void shouldPatchDocument() throws Exception {
     String guid = "bro_2";
-    ResultActions result =   this.mockMvc.perform(post(searchUrl + "/findOne").with(httpBasic(user, password)).with(csrf()).contentType(MediaType.parseMediaType("application/json;charset=UTF-8")).content(findMessage0));
-    try {
-     result.andExpect(status().isOk())
+
+    // request used to find the message
+    MockHttpServletRequestBuilder findOneRequest = post(searchUrl + "/findOne")
+            .with(httpBasic(user, password))
+            .with(csrf())
+            .contentType(MediaType.parseMediaType("application/json;charset=UTF-8"))
+            .content(findMessage0);
+
+    // request used to patch the document
+    MockHttpServletRequestBuilder patchRequest = patch(updateUrl + "/patch")
+            .with(httpBasic(user, password))
+            .with(csrf())
+            .contentType(MediaType.parseMediaType("application/json;charset=UTF-8"))
+            .content(patch);
+
+    // the document should exist, but without the 'project' field defined
+    this.mockMvc.perform(findOneRequest)
+            .andExpect(status().isOk())
             .andExpect(content().contentType(MediaType.parseMediaType("application/json;charset=UTF-8")))
             .andExpect(jsonPath("$.source:type").value("bro"))
             .andExpect(jsonPath("$.guid").value(guid))
             .andExpect(jsonPath("$.project").doesNotExist())
-            .andExpect(jsonPath("$.timestamp").value(2))
-      ;
-    }
-    catch(Throwable t) {
-      System.err.println(result.andReturn().getResponse().getContentAsString());
-      throw t;
-    }
+            .andExpect(jsonPath("$.timestamp").value(2));
+
+    // nothing is recorded in HBase
     MockHTable table = (MockHTable) MockHBaseTableProvider.getFromCache(TABLE);
-    Assert.assertEquals(0,table.size());
-    this.mockMvc.perform(patch(updateUrl+ "/patch").with(httpBasic(user, password))
-                                                   .with(csrf())
-                                                   .contentType(MediaType.parseMediaType("application/json;charset=UTF-8"))
-                                                   .content(patch)
-                        )
+    assertEquals(0,table.size());
+
+    // patch the document
+    this.mockMvc.perform(patchRequest)
             .andExpect(status().isOk());
-    this.mockMvc.perform(post(searchUrl + "/findOne").with(httpBasic(user, password)).with(csrf()).contentType(MediaType.parseMediaType("application/json;charset=UTF-8")).content(findMessage0))
+
+    // the document should now have the 'project' field
+    this.mockMvc.perform(findOneRequest)
             .andExpect(status().isOk())
             .andExpect(content().contentType(MediaType.parseMediaType("application/json;charset=UTF-8")))
             .andExpect(jsonPath("$.source:type").value("bro"))
             .andExpect(jsonPath("$.guid").value(guid))
             .andExpect(jsonPath("$.project").value("metron"))
-            .andExpect(jsonPath("$.timestamp").value(2))
-            ;
-    Assert.assertEquals(1,table.size());
+            .andExpect(jsonPath("$.timestamp").value(2));
+
+    // the change should be recorded in HBase
+    assertEquals(1,table.size());
     {
         //ensure hbase is up to date
         Get g = new Get(new HBaseDao.Key(guid,"bro").toBytes());
         Result r = table.get(g);
-        NavigableMap<byte[], byte[]> columns = r.getFamilyMap(CF.getBytes());
-        Assert.assertEquals(1, columns.size());
-    }
-    this.mockMvc.perform(post(updateUrl+ "/replace").with(httpBasic(user, password))
-                                                   .with(csrf())
-                                                   .contentType(MediaType.parseMediaType("application/json;charset=UTF-8"))
-                                                   .content(replace)
-                        )
-    .andExpect(status().isOk());
-    this.mockMvc.perform(post(searchUrl + "/findOne").with(httpBasic(user, password)).with(csrf()).contentType(MediaType.parseMediaType("application/json;charset=UTF-8")).content(findMessage0))
-            .andExpect(status().isOk())
-            .andExpect(content().contentType(MediaType.parseMediaType("application/json;charset=UTF-8")))
-            .andExpect(jsonPath("$.source:type").value("bro"))
-            .andExpect(jsonPath("$.guid").value(guid))
-            .andExpect(jsonPath("$.project").doesNotExist())
-            .andExpect(jsonPath("$.timestamp").value(200))
-            ;
-    Assert.assertEquals(1,table.size());
-    {
-        //ensure hbase is up to date
-        Get g = new Get(new HBaseDao.Key(guid, "bro").toBytes());
-        Result r = table.get(g);
-        NavigableMap<byte[], byte[]> columns = r.getFamilyMap(CF.getBytes());
-        Assert.assertEquals(2, columns.size());
+        NavigableMap<byte[], byte[]> columns = r.getFamilyMap(CF.getBytes(StandardCharsets.UTF_8));
+        assertEquals(1, columns.size());
     }
   }
 
+  @Test
+  public void shouldAddComment() throws Exception {
+    CommentAddRemoveRequest commentAddRemoveRequest = new CommentAddRemoveRequest();
+    commentAddRemoveRequest.setGuid("bro_1");
+    commentAddRemoveRequest.setSensorType("bro");
+    commentAddRemoveRequest.setComment("test_comment");
+    commentAddRemoveRequest.setUsername("test_username");
+    commentAddRemoveRequest.setTimestamp(0L);
+
+    updateService.addComment(commentAddRemoveRequest);
+
+    ResultActions result = this.mockMvc.perform(
+        post(updateUrl + "/add/comment")
+            .with(httpBasic(user, password)).with(csrf())
+            .contentType(MediaType.parseMediaType("application/json;charset=UTF-8"))
+            .content(addComment));
+    result.andExpect(status().isOk());
+  }
+
+  @Test
+  public void shouldRemoveComment() throws Exception {
+    CommentAddRemoveRequest commentAddRemoveRequest = new CommentAddRemoveRequest();
+    commentAddRemoveRequest.setGuid("bro_1");
+    commentAddRemoveRequest.setSensorType("bro");
+    commentAddRemoveRequest.setComment("test_comment");
+    commentAddRemoveRequest.setUsername("test_username");
+    commentAddRemoveRequest.setTimestamp(0L);
+
+    updateService.removeComment(commentAddRemoveRequest);
+
+    ResultActions result = this.mockMvc.perform(
+        post(updateUrl + "/remove/comment")
+            .with(httpBasic(user, password)).with(csrf())
+            .contentType(MediaType.parseMediaType("application/json;charset=UTF-8"))
+            .content(removeComment));
+    result.andExpect(status().isOk());
+  }
 }

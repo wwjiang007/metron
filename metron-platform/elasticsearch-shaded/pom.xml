@@ -17,53 +17,31 @@
     <parent>
         <artifactId>metron-platform</artifactId>
         <groupId>org.apache.metron</groupId>
-        <version>0.4.3</version>
+        <version>0.7.2</version>
     </parent>
     <modelVersion>4.0.0</modelVersion>
     <artifactId>elasticsearch-shaded</artifactId>
     <name>elasticsearch-shaded</name>
     <url>https://metron.apache.org/</url>
+    <properties>
+      <guava_version>18.0</guava_version>
+    </properties>
     <dependencies>
         <dependency>
             <groupId>com.google.guava</groupId>
             <artifactId>guava</artifactId>
-            <version>18.0</version>
+            <version>${guava_version}</version>
+        </dependency>
+        <dependency>
+            <groupId>io.netty</groupId>
+            <artifactId>netty-common</artifactId>
+            <version>4.1.13.Final</version>
         </dependency>
         <dependency>
             <groupId>org.elasticsearch.client</groupId>
-            <artifactId>transport</artifactId>
+            <artifactId>elasticsearch-rest-high-level-client</artifactId>
             <version>${global_elasticsearch_version}</version>
-            <exclusions>
-              <exclusion>
-                <groupId>com.fasterxml.jackson.dataformat</groupId>
-                <artifactId>jackson-dataformat-smile</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>com.fasterxml.jackson.dataformat</groupId>
-                <artifactId>jackson-dataformat-yaml</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>com.fasterxml.jackson.dataformat</groupId>
-                <artifactId>jackson-dataformat-cbor</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>com.fasterxml.jackson.core</groupId>
-                <artifactId>jackson-core</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.slf4j</groupId>
-                <artifactId>slf4j-api</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>org.slf4j</groupId>
-                <artifactId>slf4j-log4j12</artifactId>
-              </exclusion>
-              <exclusion>
-                <groupId>log4j</groupId>
-                <artifactId>log4j</artifactId>
-              </exclusion>
-            </exclusions>
-          </dependency>
+        </dependency>
           <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
@@ -95,10 +73,6 @@
                     <groupId>com.fasterxml.jackson.core</groupId>
                     <artifactId>jackson-core</artifactId>
                 </exclusion>
-                <exclusion> <!-- this is causing a weird build error if not excluded - Error creating shaded jar: null: IllegalArgumentException -->
-                    <groupId>org.apache.logging.log4j</groupId>
-                    <artifactId>log4j-api</artifactId>
-                </exclusion>
             </exclusions>
         </dependency>
         <dependency>
@@ -129,6 +103,8 @@
                 <artifactId>maven-shade-plugin</artifactId>
                 <version>${global_shade_version}</version>
                 <configuration>
+                    <shadedArtifactAttached>true</shadedArtifactAttached>
+                    <shadedClassifierName>uber</shadedClassifierName>
                     <createDependencyReducedPom>true</createDependencyReducedPom>
                 </configuration>
                 <executions>
@@ -147,7 +123,7 @@
                                 <exclude>META-INF/*.RSA</exclude>
                               </excludes>
                             </filter>
-                          </filters>  
+                          </filters>
                           <relocations>
                                 <!-- The REST API has conflicts with these packages -->
                                 <relocation>
@@ -155,12 +131,8 @@
                                     <shadedPattern>org.apache.metron.io.netty</shadedPattern>
                                 </relocation>
                                 <relocation>
-                                    <pattern>org.apache.logging.log4j</pattern>
-                                    <shadedPattern>org.apache.metron.logging.log4j</shadedPattern>
-                                </relocation>
-                                <relocation>
                                     <pattern>com.google.common</pattern>
-                                    <shadedPattern>org.apache.metron.guava.elasticsearch-shaded</shadedPattern>
+                                    <shadedPattern>org.apache.metron.guava.${guava_version}</shadedPattern>
                                 </relocation>
                             </relocations>
                             <artifactSet>
@@ -169,6 +141,9 @@
                                     <exclude>storm:storm-lib:*</exclude>
                                     <exclude>org.slf4j.impl*</exclude>
                                     <exclude>org.slf4j:slf4j-log4j*</exclude>
+                                    <!-- Exclude all JUnit deps from the uber jar. Exclude both JUnit 4 and 5 -->
+                                    <exclude>junit</exclude>
+                                    <exclude>org.junit*:*</exclude>
                                 </excludes>
                             </artifactSet>
                             <transformers>

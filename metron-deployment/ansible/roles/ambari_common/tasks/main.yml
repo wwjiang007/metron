@@ -15,25 +15,12 @@
 #  limitations under the License.
 #
 ---
+- include_tasks: firewall-{{ansible_distribution}}-{{ansible_distribution_major_version}}.yml
 
-- include: iptables-centos.yml
-  static: no
-  when: ansible_distribution == "CentOS"
+- include_tasks: hostname.yml
 
-- include: iptables-ubuntu.yml
-  static: no
-  when: ansible_distribution == "Ubuntu"
+- include_tasks: ambari-repo-{{ansible_distribution}}-{{ansible_distribution_major_version}}.yml
 
-- include: hostname.yml
+- include_tasks: nodejs-{{ansible_distribution}}-{{ansible_distribution_major_version}}.yml
 
-- include: ambari-repo-centos.yml
-  static: no
-  when: ansible_distribution == "CentOS"
-
-- include: ambari-repo-ubuntu.yml
-  static: no
-  when: ansible_distribution == "Ubuntu"
-
-- include: elasticsearch-repo.yml
-- include: nodejs.yml
-- include: logrotate.yml
+- include_tasks: logrotate.yml

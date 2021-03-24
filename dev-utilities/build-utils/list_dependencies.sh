@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 #  Licensed to the Apache Software Foundation (ASF) under one or more
 #  contributor license agreements.  See the NOTICE file distributed with
@@ -16,4 +16,16 @@
 #  limitations under the License.
 #
 
-{ mvn dependency:list ; mvn dependency:list -PHDP-2.5.0.0 ; } | grep "^\[INFO\]   " | awk '{print $2}' | grep -v "org.apache" | grep -v "test" | grep -v "provided" | grep -v "runtime" | grep -v ":system" |  sort | uniq
+DEPS=$(mvn dependency:list)
+rc=$?
+if [[ $rc != 0 ]]; then
+  echo "ERROR:  Failed to run mvn dependency:list"
+  DEPS=$(mvn dependency:list -PHDP-2.5.0.0)
+  rc=$?
+  if [[ $rc != 0 ]]; then
+    echo "ERROR:  Failed to run mvn dependency:list -PHDP-2.5.0.0"
+    exit $rc
+  fi
+fi
+
+echo "$DEPS" | grep "^\[INFO\]   " | awk '{print $2}' | grep -v "org.apache" | grep -v "test" | grep -v "provided" | grep -v "runtime" | grep -v ":system" | sort | uniq

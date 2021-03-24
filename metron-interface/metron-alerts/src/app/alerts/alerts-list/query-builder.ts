@@ -22,20 +22,33 @@ import {SortField} from '../../model/sort-field';
 import {TIMESTAMP_FIELD_NAME} from '../../utils/constants';
 import {GroupRequest} from '../../model/group-request';
 import {Group} from '../../model/group';
+import { Injectable } from '@angular/core';
 
+export enum FilteringMode {
+  MANUAL = 'FilteringModeIsManual',
+  BUILDER = 'FilteringModeIsBuilder',
+}
+
+@Injectable()
 export class QueryBuilder {
   private _searchRequest = new SearchRequest();
   private _groupRequest = new GroupRequest();
-  private _query = '*';
-  private _displayQuery = this._query;
+
+  private _manualQuery;
   private _filters: Filter[] = [];
 
+  private filteringMode: FilteringMode = FilteringMode.BUILDER;
+
   get query(): string {
-    return this._query;
+    return this.searchRequest.query;
+  }
+
+  set query(value: string) {
+    this.searchRequest.query = value;
   }
 
   get displayQuery(): string {
-    return this._displayQuery;
+    return this.generateSelectForDisplay();
   }
 
   set filters(filters: Filter[]) {
@@ -48,9 +61,8 @@ export class QueryBuilder {
     return this._filters;
   }
 
-
   get searchRequest(): SearchRequest {
-    this._searchRequest.query = this.generateSelect();
+    this._searchRequest.query = this.getQueryString() || '*';
     return this._searchRequest;
   }
 
@@ -59,25 +71,35 @@ export class QueryBuilder {
     this.setSearch(this._searchRequest.query);
   }
 
-  get groupRequest(): GroupRequest {
-    this._groupRequest.query = this.generateSelect();
+  groupRequest(scoreField): GroupRequest {
+    this._groupRequest.query = this.getQueryString() || '*';
+    this._groupRequest.scoreField = scoreField;
     return this._groupRequest;
   }
 
   setSearch(query: string) {
     this.updateFilters(query, true);
-    this.onSearchChange();
   }
 
   clearSearch() {
     this._filters = [];
-    this.onSearchChange();
+    this._manualQuery = null;
   }
 
   addOrUpdateFilter(filter: Filter) {
     let existingFilterIndex = -1;
+
+    if (filter.field === TIMESTAMP_FIELD_NAME) {
+      const existingTimeRangeFilter = this.filters.find(fItem => fItem.field === TIMESTAMP_FIELD_NAME);
+      if (existingTimeRangeFilter) {
+        this.removeFilter(existingTimeRangeFilter);
+      }
+      this._filters.push(filter);
+      return;
+    }
+
     let existingFilter = this._filters.find((tFilter, index) => {
-      if (tFilter.field === filter.field) {
+      if (filter.equals(tFilter)) {
         existingFilterIndex = index;
         return true;
       }
@@ -89,13 +111,18 @@ export class QueryBuilder {
     } else {
       this._filters.push(filter);
     }
-
-    this.onSearchChange();
   }
 
-  generateSelect() {
-    let select = this._filters.map(filter => filter.getQueryString()).join(' AND ');
-    return (select.length === 0) ? '*' : select;
+  private getQueryString() {
+    if (this.filteringMode === FilteringMode.MANUAL) {
+      return this.getManualQuery();
+    } else {
+      return this.getBuilderQueryString();
+    }
+  }
+
+  private getBuilderQueryString() {
+    return this._filters.map(filter => filter.getQueryString()).join(' AND ');
   }
 
   generateNameForSearchRequest() {
@@ -104,37 +131,24 @@ export class QueryBuilder {
   }
 
   generateSelectForDisplay() {
-    let appliedFilters = [];
-    this._filters.reduce((appliedFilters, filter) => {
+    return this._filters.reduce((appliedFilters, filter) => {
       if (filter.display) {
         appliedFilters.push(ColumnNamesService.getColumnDisplayValue(filter.field) + ':' + filter.value);
       }
-
       return appliedFilters;
-    }, appliedFilters);
-
-    let select = appliedFilters.join(' AND ');
-    return (select.length === 0) ? '*' : select;
+    }, []).join(' AND ') || '*';
   }
 
   isTimeStampFieldPresent(): boolean {
     return this._filters.some(filter => (filter.field === TIMESTAMP_FIELD_NAME &&  !isNaN(Number(filter.value))));
   }
 
-  onSearchChange() {
-    this._query = this.generateSelect();
-    this._displayQuery = this.generateSelectForDisplay();
+  removeFilter(filter: Filter) {
+    this._filters = this._filters.filter(fItem => fItem !== filter );
   }
 
-  removeFilter(field: string) {
-    let filter = this._filters.find(tFilter => tFilter.field === field);
-    this._filters.splice(this._filters.indexOf(filter), 1);
-
-    this.onSearchChange();
-  }
-
-  setFields(fieldNames: string[]) {
-      // this.searchRequest._source = fieldNames;
+  removeFilterByField(field: string): void {
+    this._filters = this._filters.filter(fItem => fItem.field !== field );
   }
 
   setFromAndSize(from: number, size: number) {
@@ -143,7 +157,7 @@ export class QueryBuilder {
   }
 
   setGroupby(groups: string[]) {
-    this.groupRequest.groups = groups.map(groupName => new Group(groupName));
+    this._groupRequest.groups = groups.map(groupName => new Group(groupName));
   }
 
   setSort(sortBy: string, order: string) {
@@ -151,24 +165,47 @@ export class QueryBuilder {
     this.searchRequest.sort = [sortField];
   }
 
-  private updateFilters(tQuery: string, updateNameTransform = false) {
-    let query = tQuery;
+  setFilteringMode(mode: FilteringMode) {
+    this.filteringMode = mode;
+  }
+
+  getFilteringMode() {
+    return this.filteringMode;
+  }
+
+  setManualQuery(query: string) {
+    this._manualQuery = query;
+  }
+
+  getManualQuery(): string {
+    if (!this._manualQuery) {
+      this._manualQuery = this.getBuilderQueryString() || '*';
+    }
+    return this._manualQuery;
+  }
+
+  private updateFilters(query: string, updateNameTransform = false) {
     this.removeDisplayedFilters();
 
     if (query && query !== '' && query !== '*') {
       let terms = query.split(' AND ');
       for (let term of terms) {
-        let separatorPos = term.lastIndexOf(':');
-        let field = term.substring(0, separatorPos).replace('\\', '');
+        let [field, value] = this.splitTerm(term);
         field = updateNameTransform ? ColumnNamesService.getColumnDisplayKey(field) : field;
-        let value = term.substring(separatorPos + 1, term.length);
+        value = value.trim();
+
         this.addOrUpdateFilter(new Filter(field, value));
       }
     }
   }
 
+  private splitTerm(term): string[] {
+    const lastIdxOfSeparator = term.lastIndexOf(':');
+    return [ term.substring(0, lastIdxOfSeparator), term.substring(lastIdxOfSeparator + 1) ];
+  }
+
   private removeDisplayedFilters() {
-    for (let i = this._filters.length-1; i >= 0; i--) {
+    for (let i = this._filters.length - 1; i >= 0; i--) {
       if (this._filters[i].display) {
         this._filters.splice(i, 1);
       }

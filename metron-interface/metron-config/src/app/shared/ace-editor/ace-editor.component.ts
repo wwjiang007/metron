@@ -1,6 +1,23 @@
-import { Component, AfterViewInit, ViewChild, ElementRef, forwardRef, Input} from '@angular/core';
+/**
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+/// <reference path="../../../../node_modules/@types/ace/index.d.ts" />
+import { Component, AfterViewInit, ViewChild, ElementRef, forwardRef, Input, Output, EventEmitter} from '@angular/core';
 import { ControlValueAccessor, NG_VALUE_ACCESSOR } from '@angular/forms';
-import Editor = AceAjax.Editor;
 import {AutocompleteOption} from '../../model/autocomplete-option';
 
 declare var ace: any;
@@ -20,17 +37,23 @@ declare var ace: any;
 export class AceEditorComponent implements AfterViewInit, ControlValueAccessor {
 
   inputJson: any = '';
-  aceConfigEditor: Editor;
-  @Input() type: string = 'JSON';
-  @Input() placeHolder: string = 'Enter text here';
+  aceConfigEditor: AceAjax.Editor;
+  @Input() type: 'GROK' | 'JSON' | 'STELLAR' = 'JSON';
+  @Input() placeHolder = 'Enter text here';
   @Input() options: AutocompleteOption[] = [];
+  @Input() liveAutocompletion = true;
+  @Input() enableSnippets = true;
+  @Input() useWorker = true;
+  @Input() wrapLimitRangeMin: number | null = 72;
+  @Input() wrapLimitRangeMax: number | null = 72;
+  @Output() onChange = new EventEmitter();
   @ViewChild('aceEditor') aceEditorEle: ElementRef;
 
   private onTouchedCallback;
   private onChangeCallback;
 
   constructor() {
-    ace.config.set('basePath', '/assets/ace');
+    ace.config.set('basePath', 'assets/ace');
   }
 
   ngAfterViewInit() {
@@ -84,7 +107,7 @@ export class AceEditorComponent implements AfterViewInit, ControlValueAccessor {
     parserConfigEditor.getSession().setMode(this.getEditorType());
     parserConfigEditor.getSession().setTabSize(2);
     parserConfigEditor.getSession().setUseWrapMode(true);
-    parserConfigEditor.getSession().setWrapLimitRange(72, 72);
+    parserConfigEditor.getSession().setWrapLimitRange(this.wrapLimitRangeMin, this.wrapLimitRangeMax);
 
     parserConfigEditor.$blockScrolling = Infinity;
     parserConfigEditor.setTheme('ace/theme/monokai');
@@ -93,12 +116,16 @@ export class AceEditorComponent implements AfterViewInit, ControlValueAccessor {
       highlightActiveLine: false,
       maxLines: Infinity,
       enableBasicAutocompletion: true,
-      enableSnippets: true,
-      enableLiveAutocompletion: true
+      enableSnippets: this.enableSnippets,
+      useWorker: this.useWorker,
+      enableLiveAutocompletion: this.liveAutocompletion
     });
     parserConfigEditor.on('change', (e: any) => {
       this.inputJson = this.aceConfigEditor.getValue();
-      this.onChangeCallback(this.aceConfigEditor.getValue());
+      this.onChange.emit(this.inputJson);
+      if (typeof this.onChangeCallback === 'function') {
+        this.onChangeCallback(this.inputJson);
+      }
     });
 
     if (this.type === 'GROK') {
@@ -167,6 +194,8 @@ export class AceEditorComponent implements AfterViewInit, ControlValueAccessor {
   private getEditorType() {
       if (this.type === 'GROK') {
         return 'ace/mode/grok';
+      } else if (this.type === 'STELLAR') {
+        return 'ace/mode/javascript';
       }
 
       return 'ace/mode/json';

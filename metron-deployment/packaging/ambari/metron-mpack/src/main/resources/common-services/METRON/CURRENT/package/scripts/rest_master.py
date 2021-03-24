@@ -17,15 +17,16 @@ limitations under the License.
 
 """
 
+import metron_service
 from resource_management.core.exceptions import ComponentIsNotRunning
 from resource_management.core.exceptions import ExecutionFailed
-from resource_management.core.resources.system import Directory
+from resource_management.core.exceptions import Fail
 from resource_management.core.resources.system import File
 from resource_management.core.source import Template
 from resource_management.libraries.functions.format import format
-from resource_management.libraries.functions.get_user_call_output import get_user_call_output
+from resource_management.libraries.functions.get_user_call_output import \
+  get_user_call_output
 from resource_management.libraries.script import Script
-
 from rest_commands import RestCommands
 
 
@@ -43,11 +44,24 @@ class RestMaster(Script):
              content=Template("metron.j2")
              )
 
+        metron_service.refresh_configs(params)
+
         commands = RestCommands(params)
-        commands.init_kafka_topics()
-        if params.security_enabled and not commands.is_acl_configured():
+
+        if not commands.is_kafka_configured():
+            commands.init_kafka_topics()
+        if not commands.is_hbase_configured():
+            commands.create_hbase_tables()
+        if not commands.is_metron_user_hdfs_dir_configured():
+            commands.create_metron_user_hdfs_dir()
+        if params.security_enabled and not commands.is_hbase_acl_configured():
+            commands.set_hbase_acls()
+        if params.security_enabled and not commands.is_kafka_acl_configured():
             commands.init_kafka_acls()
-            commands.set_acl_configured()
+            commands.set_kafka_acl_configured()
+
+        if params.metron_knox_enabled and not params.metron_ldap_enabled:
+            raise Fail("Enabling Metron with Knox requires LDAP authentication.  Please set 'LDAP Enabled' to true in the Metron Security tab.")
 
     def start(self, env, upgrade_type=None):
         from params import params

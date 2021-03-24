@@ -17,6 +17,7 @@
  */
 package org.apache.metron.rest.config;
 
+import java.nio.charset.StandardCharsets;
 import oi.thekraken.grok.api.Grok;
 import oi.thekraken.grok.api.exception.GrokException;
 import org.springframework.context.annotation.Bean;
@@ -30,7 +31,8 @@ public class GrokConfig {
     @Bean
     public Grok commonGrok() throws GrokException {
         Grok grok = new Grok();
-        grok.addPatternFromReader(new InputStreamReader(getClass().getResourceAsStream("/patterns/common")));
+        grok.addPatternFromReader(new InputStreamReader(getClass().getResourceAsStream(
+            "/patterns/common"), StandardCharsets.UTF_8));
         return grok;
     }
 }

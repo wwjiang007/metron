@@ -18,6 +18,7 @@
 import {AlertComment} from '../alerts/alert-details/alert-comment';
 
 export class AlertSource {
+  name: string;
   msg: string;
   sig_rev: number;
   ip_dst_port: number;
@@ -44,7 +45,7 @@ export class AlertSource {
   guid: string;
   sig_id: number;
   sig_generator: number;
-  alert: AlertSource[] = [];
+  metron_alert: AlertSource[] = [];
   comments: AlertComment[] = [];
   'threat:triage:score': number;
   'threatinteljoinbolt:joiner:ts': number;

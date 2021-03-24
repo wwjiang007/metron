@@ -21,7 +21,6 @@ import org.apache.log4j.ConsoleAppender;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PatternLayout;
-import org.junit.Assert;
 
 import java.io.File;
 import java.io.IOException;
@@ -35,6 +34,7 @@ import java.util.Set;
 import java.util.Stack;
 
 import static java.lang.String.format;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 
 public class UnitTestHelper {
   public static String findDir(String name) {
@@ -74,7 +74,7 @@ public class UnitTestHelper {
         System.out.println("Expected " + type + " that I did not index: " + expectedId);
       }
     }
-    Assert.assertFalse(mismatch);
+    assertFalse(mismatch);
   }
 
   public static void verboseLogging() {
@@ -94,6 +94,23 @@ public class UnitTestHelper {
   public static void setLog4jLevel(Class clazz, Level level) {
     Logger logger = Logger.getLogger(clazz);
     logger.setLevel(level);
+  }
+
+  /**
+   * Root logger.
+   * @param level level for root logger
+   */
+  public static void setLog4jLevel(Level level) {
+    Logger logger = Logger.getRootLogger();
+    logger.setLevel(level);
+  }
+
+  /**
+   * Root logger.
+   */
+  public static Level getLog4jLevel() {
+    Logger rootLogger = Logger.getRootLogger();
+    return rootLogger.getLevel();
   }
 
   public static Level getLog4jLevel(Class clazz) {

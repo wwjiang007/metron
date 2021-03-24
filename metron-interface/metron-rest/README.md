@@ -19,9 +19,19 @@ limitations under the License.
 
 This module provides a RESTful API for interacting with Metron.
 
+* [Prerequisites](#prerequisites)
+* [Installation](#installation)
+* [Configuration](#configuration)
+* [Usage](#usage)
+* [Security](#security)
+* [API](#api)
+* [Testing](#testing)
+* [Local Development](#local-development)
+
 ## Prerequisites
 
 * A running Metron cluster
+* A running real-time store, either Elasticsearch or Solr depending on which one is enabled
 * Java 8 installed
 * Storm CLI and Metron topology scripts (start_parser_topology.sh, start_enrichment_topology.sh, start_elasticsearch_topology.sh) installed
 * A relational database
@@ -65,28 +75,32 @@ No optional parameter has a default.
 
 | Environment Variable                  | Description
 | ------------------------------------- | -----------
-| METRON_JDBC_DRIVER                    | JDBC driver class
-| METRON_JDBC_URL                       | JDBC url
-| METRON_JDBC_USERNAME                  | JDBC username
-| METRON_JDBC_PLATFORM                  | JDBC platform (one of h2, mysql, postgres, oracle
 | ZOOKEEPER                             | Zookeeper quorum (ex. node1:2181,node2:2181)
 | BROKERLIST                            | Kafka Broker list (ex. node1:6667,node2:6667)
 | HDFS_URL                              | HDFS url or `fs.defaultFS` Hadoop setting (ex. hdfs://node1:8020)
 
 ### Optional - With Defaults
-| Environment Variable                  | Description                                                       | Required | Default
-| ------------------------------------- | ----------------------------------------------------------------- | -------- | -------
-| METRON_LOG_DIR                        | Directory where the log file is written                           | Optional | /var/log/metron/
-| METRON_PID_FILE                       | File where the pid is written                                     | Optional | /var/run/metron/
-| METRON_REST_PORT                      | REST application port                                             | Optional | 8082
-| METRON_JDBC_CLIENT_PATH               | Path to JDBC client jar                                           | Optional | H2 is bundled
-| METRON_TEMP_GROK_PATH                 | Temporary directory used to test grok statements                  | Optional | ./patterns/temp
-| METRON_DEFAULT_GROK_PATH              | Defaults HDFS directory used to store grok statements             | Optional | /apps/metron/patterns
-| SECURITY_ENABLED                      | Enables Kerberos support                                          | Optional | false
+| Environment Variable                  | Description                                                                                                                           | Required | Default
+| ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | -------- | -------
+| METRON_LOG_DIR                        | Directory where the log file is written                                                                                               | Optional | /var/log/metron/
+| METRON_PID_FILE                       | File where the pid is written                                                                                                         | Optional | /var/run/metron/
+| METRON_REST_PORT                      | REST application port                                                                                                                 | Optional | 8082
+| METRON_JDBC_CLIENT_PATH               | Path to JDBC client jar                                                                                                               | Optional | H2 is bundled
+| METRON_TEMP_GROK_PATH                 | Temporary directory used to test grok statements                                                                                      | Optional | ./patterns/temp
+| METRON_DEFAULT_GROK_PATH              | Defaults HDFS directory used to store grok statements                                                                                 | Optional | /apps/metron/patterns
+| SECURITY_ENABLED                      | Enables Kerberos support                                                                                                              | Optional | false
+| METRON_USER_ROLE                      | Name of the role at the authentication provider that provides user access to Metron.                                                  | Optional | USER
+| METRON_ADMIN_ROLE                     | Name of the role at the authentication provider that provides administrative access to Metron.                                        | Optional | ADMIN
+| STORM_STATUS_CACHE_MAX_SIZE           | The maximum size for the cache that fronts calls to the Storm API for topology status.                                                | Optional | 10000
+| STORM_STATUS_CACHE_TIMEOUT_SECONDS    | Duration in seconds for cache entries to timeout. Note that the higher the value, the more stale the returned value will be.          | Optional | 5
 
 ### Optional - Blank Defaults
 | Environment Variable                  | Description                                                       | Required
 | ------------------------------------- | ----------------------------------------------------------------- | --------
+| METRON_JDBC_DRIVER                    | JDBC driver class                                                 | Optional
+| METRON_JDBC_URL                       | JDBC url                                                          | Optional
+| METRON_JDBC_USERNAME                  | JDBC username                                                     | Optional
+| METRON_JDBC_PLATFORM                  | JDBC platform (one of h2, mysql, postgres, oracle)                | Optional
 | METRON_JVMFLAGS                       | JVM flags added to the start command                              | Optional
 | METRON_SPRING_PROFILES_ACTIVE         | Active Spring profiles (see [below](#spring-profiles))            | Optional
 | METRON_SPRING_OPTIONS                 | Additional Spring input parameters                                | Optional
@@ -95,10 +109,128 @@ No optional parameter has a default.
 
 These are set in the `/etc/default/metron` file.
 
-## Database setup
+## Usage
+
+The REST application can be accessed with the Swagger UI at http://host:port/swagger-ui.html#/.  The default port is 8082.
+
+### Logging
+
+Logging for the REST application can be configured in Ambari.  Log levels can be changed at the root, package and class level:
+
+1. Navigate to Services > Metron > Configs > REST and locate the `Metron Spring options` setting.
+
+1. Logging configuration is exposed through Spring properties as explained [here](https://docs.spring.io/spring-boot/docs/current/reference/html/howto-logging.html#howto-logging).
+
+1. The root logging level defaults to ERROR but can be changed to INFO by adding `--logging.level.root=INFO` to the `Metron Spring options` setting.
+
+1. The Metron REST logging level can be changed to INFO by adding `--logging.level.org.apache.metron.rest=INFO`.
+
+1. HTTP request and response logging can be enabled by adding `--logging.level.org.springframework.web.filter.CommonsRequestLoggingFilter=DEBUG --logging.level.org.apache.metron.rest.web.filter.ResponseLoggingFilter=DEBUG`.
+
+### Spring Profiles
+
+The REST application comes with a few [Spring Profiles](http://docs.spring.io/autorepo/docs/spring-boot/current/reference/html/boot-features-profiles.html) to aid in testing and development.
+
+| Profile                  | Description                                   |
+| ------------------------ | --------------------------------------------- |
+| test                     | adds test users `[user, user1, user2, admin]` to the database with password "`password`". sets variables to in-memory services, only used for integration testing |
+| dev                      | adds test users `[user, user1, user2, admin]` to the database with password "`password`" |
+| vagrant                  | sets configuration variables to match the Metron vagrant environment |
+| docker                   | sets configuration variables to match the Metron docker environment |
+
+Setting active profiles is done with the METRON_SPRING_PROFILES_ACTIVE variable.  For example, set this variable in `/etc/default/metron` to configure the REST application for the Vagrant environment and add a test user:
+```
+METRON_SPRING_PROFILES_ACTIVE="vagrant,dev"
+```
+
+## Security
+
+* [Kerberos](#kerberos)
+* [LDAP Authentication](#ldap-authentication)
+* [JDBC Authentication](#jdbc-authentication)
+
+### Kerberos
+
+Metron REST can be configured for a cluster with Kerberos enabled.  A client JAAS file is required for Kafka and Zookeeper and a Kerberos keytab for the metron user principal is required for all other services.  Configure these settings in the `/etc/default/metron` file:
+```
+SECURITY_ENABLED=true
+METRON_JVMFLAGS="-Djava.security.auth.login.config=$METRON_HOME/client_jaas.conf"
+METRON_PRINCIPAL_NAME="metron@EXAMPLE.COM"
+METRON_SERVICE_KEYTAB="/etc/security/keytabs/metron.keytab"
+```
+
+### LDAP Authentication
+
+Metron REST can be configured to use LDAP for authentication and roles. Use the following steps to enable LDAP.
+
+1. In Ambari, go to Metron > Config > Security > Roles
+
+    * Set "User Role Name" to the name of the role at the authentication provider that provides user level access to Metron.
+
+    * Set "Admin Role Name" to the name of the role at the authentication provider that provides administrative access to Metron.
+
+1. In Ambari, go to Metron > Config > Security > LDAP
+
+    * Turn on LDAP using the toggle.
+
+    * Set "LDAP URL" to your LDAP instance. For example, `ldap://<host>:<port>`.
+
+    * Set "Bind User" to the name of the bind user.  For example, `cn=admin,dc=apache,dc=org`.
+
+    * Set the "Bind User Password"
+
+    * Other fields may be required depending on your LDAP configuration.
+
+1. Save the changes and restart the required services.
+
+By default, configuration will default to matching Knox's Demo LDAP for convenience. This should only be used for development purposes. Manual instructions for setting up demo LDAP and finalizing configuration (e.g. setting up the user LDIF file) can be found in the [Development README](../../metron-deployment/development/README.md#knox-demo-ldap).
+
+#### LDAPS
+
+There is configuration to provide a path to a truststore with SSL certificates and provide a password. Users should import certificates as needed to appropriate truststores.  An example of doing this is:
+```
+keytool -import -alias <alias> -file <certificate> -keystore <keystore_file> -storepass <password>
+```
+
+#### Roles
+
+Roles used by Metron are `ROLE_ADMIN` and `ROLE_USER`. Metron will use a property in a group containing the appropriate role to construct this.
+
+Metron can be configured to map the roles defined in your authorization provider to the authorities used internally for access control.  This can be configured under Security > Roles in Ambari.
+
+For example, our ldif file could create this group:
+```
+dn: cn=admin,ou=groups,dc=hadoop,dc=apache,dc=org
+objectclass:top
+objectclass: groupofnames
+cn: admin
+description:admin group
+member: uid=admin,ou=people,dc=hadoop,dc=apache,dc=org
+```
+
+If we are using "cn" as our role attribute, Metron will give the "admin" user the role "ROLE_ADMIN".
+
+Similarly, we could give a user "sam" ROLE_USER with the following group:
+```
+dn: cn=user,ou=groups,dc=hadoop,dc=apache,dc=org
+objectclass:top
+objectclass: groupofnames
+cn: user
+description: user group
+member: uid=sam,ou=people,dc=hadoop,dc=apache,dc=org
+```
+
+### JDBC Authentication
 
 The REST application persists data in a relational database and requires a dedicated database user and database (see https://docs.spring.io/spring-boot/docs/current/reference/html/boot-features-sql.html for more detail).  
 Spring uses Hibernate as the default ORM framework but another framework is needed becaused Hibernate is not compatible with the Apache 2 license.  For this reason Metron uses [EclipseLink](https://docs.spring.io/spring-boot/docs/current/reference/html/boot-features-sql.html#boot-features-embedded-database-support).  See the [Spring Data JPA - EclipseLink](https://github.com/spring-projects/spring-data-examples/tree/master/jpa/eclipselink) project for an example on how to configure EclipseLink in Spring.
+
+The metron-rest module uses [Spring Security](http://projects.spring.io/spring-security/) for authentication and stores user credentials in the relational database configured above.  The required tables are created automatically the first time the application is started so that should be done first.  For example (continuing the MySQL example above), users can be added by connecting to MySQL and running:
+```
+use metronrest;
+insert into users (username, password, enabled) values ('your_username','your_password',1);
+insert into authorities (username, authority) values ('your_username', 'ROLE_USER');
+```
 
 ### Development
 
@@ -135,6 +267,8 @@ The following configures the application for MySQL:
     GRANT ALL PRIVILEGES ON metronrest.* TO 'metron'@'node1';
     ```
 
+1. Create the security tables as described in the [Spring Security Guide](https://docs.spring.io/spring-security/site/docs/5.0.4.RELEASE/reference/htmlsingle/#user-schema).
+
 1. Install the MySQL JDBC client onto the REST application host and configurate the METRON_JDBC_CLIENT_PATH variable:
     ```
     cd $METRON_HOME/lib
@@ -166,46 +300,40 @@ The following configures the application for MySQL:
     unset METRON_JDBC_PASSWORD;
     ```
 
-## Usage
 
-The REST application can be accessed with the Swagger UI at http://host:port/swagger-ui.html#/.  The default port is 8082.
+## Pcap Query
 
-## Security
+The REST application exposes endpoints for querying Pcap data.  For more information about filtering options see [Query Filter Utility](../../metron-platform/metron-pcap-backend#query-filter-utility).
 
-### Authentication
+There is an endpoint available that will return Pcap data in [PDML](https://wiki.wireshark.org/PDML) format.  [Wireshark](https://www.wireshark.org/) must be installed for this feature to work.
+Installing wireshark in CentOS can be done with `yum -y install wireshark`.
 
-The metron-rest module uses [Spring Security](http://projects.spring.io/spring-security/) for authentication and stores user credentials in the relational database configured above.  The required tables are created automatically the first time the application is started so that should be done first.  For example (continuing the MySQL example above), users can be added by connecting to MySQL and running:
+The REST application uses a Java Process object to call out to the `pcap_to_pdml.sh` script.  This script is installed at `$METRON_HOME/bin/pcap_to_pdml.sh` by default.
+Out of the box it is a simple wrapper around the tshark command to transform raw pcap data to PDML.  However it can be extended to do additional processing as long as the expected input/output is maintained.
+REST will supply the script with raw pcap data through standard in and expects PDML data serialized as XML.
+
+Pcap query jobs can be configured for submission to a YARN queue.  This setting is exposed as the Spring property `pcap.yarn.queue` and can be set in the PCAP tab under Metron service -> Configs in Ambari.  If configured, the REST application will set the `mapreduce.job.queuename` Hadoop property to that value.
+It is highly recommended that a dedicated YARN queue be created and configured for Pcap queries to prevent a job from consuming too many cluster resources.  More information about setting up YARN queues can be found [here](https://hadoop.apache.org/docs/current/hadoop-yarn/hadoop-yarn-site/CapacityScheduler.html#Setting_up_queues).
+
+Pcap query results are stored in HDFS.  The location of query results when run through the REST app is determined by a couple factors.  The root of Pcap query results defaults to `/apps/metron/pcap/output` but can be changed with the
+Spring property `pcap.final.output.path`.  Assuming the default Pcap query output directory, the path to a result page will follow this pattern:
 ```
-use metronrest;
-insert into users (username, password, enabled) values ('your_username','your_password',1);
-insert into authorities (username, authority) values ('your_username', 'ROLE_USER');
+/apps/metron/pcap/output/{username}/MAP_REDUCE/{job id}/page-{page number}.pcap
 ```
+Over time Pcap query results will accumulate in HDFS.  Currently these results are not cleaned up automatically so cluster administrators should be aware of this and monitor them.  It is highly recommended that a process be put in place to
+periodically delete files and directories under the Pcap query results root.
 
-### Kerberos
+Users should also be mindful of date ranges used in queries so they don't produce result sets that are too large.  Currently there are no limits enforced on date ranges.
 
-Metron REST can be configured for a cluster with Kerberos enabled.  A client JAAS file is required for Kafka and Zookeeper and a Kerberos keytab for the metron user principal is required for all other services.  Configure these settings in the `/etc/default/metron` file:
-```
-SECURITY_ENABLED=true
-METRON_JVMFLAGS="-Djava.security.auth.login.config=$METRON_HOME/client_jaas.conf"
-METRON_PRINCIPAL_NAME="metron@EXAMPLE.COM"
-METRON_SERVICE_KEYTAB="/etc/security/keytabs/metron.keytab"
-```
+Queries can also be configured on a global level for setting the number of results per page via a Spring property `pcap.page.size`. This property can be set in the PCAP tab under Metron service -> Configs, in Ambari. By default, this value is set to 10 pcaps per page, but you may choose to set this value higher
+based on observing frequenetly-run query result sizes. This setting works in conjunction with the property for setting finalizer threadpool size when optimizing query performance.
 
-## Spring Profiles
-
-The REST application comes with a few [Spring Profiles](http://docs.spring.io/autorepo/docs/spring-boot/current/reference/html/boot-features-profiles.html) to aid in testing and development.
-
-| Profile                  | Description                                   |
-| ------------------------ | --------------------------------------------- |
-| test                     | adds test users `[user, user1, user2, admin]` to the database with password "`password`". sets variables to in-memory services, only used for integration testing |
-| dev                      | adds test users `[user, user1, user2, admin]` to the database with password "`password`" |
-| vagrant                  | sets configuration variables to match the Metron vagrant environment |
-| docker                   | sets configuration variables to match the Metron docker environment |
-
-Setting active profiles is done with the METRON_SPRING_PROFILES_ACTIVE variable.  For example, set this variable in `/etc/default/metron` to configure the REST application for the Vagrant environment and add a test user:
-```
-METRON_SPRING_PROFILES_ACTIVE="vagrant,dev"
-```
+Pcap query jobs have a finalization routine that writes their results out to HDFS in pages. Depending on the size of your pcaps, the number or results typically returned, page sizing (described above), and available CPU cores for running
+your REST application, your performance can be improved by adjusting the number of files that can be written to HDFS in parallel. To this end, there is a threadpool used for this finalization step that can be configured to use a specified
+number of threads. This setting is exposed as the Spring property `pcap.finalizer.threadpool.size`. A default value of "1" is used if not specified by the user. Generally speaking, you should see a performance gain when this value is set
+to anything higher than 1. A sizeable increase in performance can be achieved, especially for larger numbers of files of smaller size, by increasing the number of threads. It should be noted that this property is parsed as a String to allow
+for more complex parallelism values. In addition to normal integer values, you can specify a multiple of the number of cores. If it's a string and ends with "C", then strip the C and treat it as an integral multiple of the number of cores.
+If it's a string and does not end with a C, then treat it as a number in string form.
 
 ## API
 
@@ -213,11 +341,11 @@ Request and Response objects are JSON formatted.  The JSON schemas are available
 
 |            |
 | ---------- |
-| [ `POST /api/v1/alert/escalate`](#get-apiv1alertescalate)|
-| [ `GET /api/v1/alert/profile`](#get-apiv1alertprofile)|
-| [ `GET /api/v1/alert/profile/all`](#get-apiv1alertprofileall)|
-| [ `DELETE /api/v1/alert/profile`](#delete-apiv1alertprofile)|
-| [ `POST /api/v1/alert/profile`](#post-apiv1alertprofile)|
+| [ `POST /api/v1/alerts/ui/escalate`](#post-apiv1alertsuiescalate)|
+| [ `GET /api/v1/alerts/ui/settings`](#get-apiv1alertsuisettings)|
+| [ `GET /api/v1/alerts/ui/settings/all`](#get-apiv1alertsuisettingsall)|
+| [ `DELETE /api/v1/alerts/ui/settings`](#delete-apiv1alertsuisettings)|
+| [ `POST /api/v1/alerts/ui/settings`](#post-apiv1alertsuisettings)|
 | [ `GET /api/v1/global/config`](#get-apiv1globalconfig)|
 | [ `DELETE /api/v1/global/config`](#delete-apiv1globalconfig)|
 | [ `POST /api/v1/global/config`](#post-apiv1globalconfig)|
@@ -239,9 +367,17 @@ Request and Response objects are JSON formatted.  The JSON schemas are available
 | [ `GET /api/v1/metaalert/add/alert`](#get-apiv1metaalertaddalert)|
 | [ `GET /api/v1/metaalert/remove/alert`](#get-apiv1metaalertremovealert)|
 | [ `GET /api/v1/metaalert/update/status/{guid}/{status}`](#get-apiv1metaalertupdatestatusguidstatus)|
+| [ `POST /api/v1/pcap/fixed`](#post-apiv1pcapfixed)|
+| [ `POST /api/v1/pcap/query`](#post-apiv1pcapquery)|
+| [ `GET /api/v1/pcap`](#get-apiv1pcap)|
+| [ `GET /api/v1/pcap/{jobId}`](#get-apiv1pcapjobid)|
+| [ `GET /api/v1/pcap/{jobId}/pdml`](#get-apiv1pcapjobidpdml)|
+| [ `GET /api/v1/pcap/{jobId}/raw`](#get-apiv1pcapjobidraw)|
+| [ `DELETE /api/v1/pcap/kill/{jobId}`](#delete-apiv1pcapkilljobid)|
+| [ `GET /api/v1/pcap/{jobId}/config`](#get-apiv1pcapjobidconfig)|
 | [ `GET /api/v1/search/search`](#get-apiv1searchsearch)|
-| [ `POST /api/v1/search/search`](#get-apiv1searchsearch)|
-| [ `POST /api/v1/search/group`](#get-apiv1searchgroup)|
+| [ `POST /api/v1/search/search`](#post-apiv1searchsearch)|
+| [ `POST /api/v1/search/group`](#post-apiv1searchgroup)|
 | [ `GET /api/v1/search/findOne`](#get-apiv1searchfindone)|
 | [ `GET /api/v1/search/column/metadata`](#get-apiv1searchcolumnmetadata)|
 | [ `GET /api/v1/sensor/enrichment/config`](#get-apiv1sensorenrichmentconfig)|
@@ -261,6 +397,10 @@ Request and Response objects are JSON formatted.  The JSON schemas are available
 | [ `GET /api/v1/sensor/parser/config/reload/available`](#get-apiv1sensorparserconfigreloadavailable)|
 | [ `DELETE /api/v1/sensor/parser/config/{name}`](#delete-apiv1sensorparserconfigname)|
 | [ `GET /api/v1/sensor/parser/config/{name}`](#get-apiv1sensorparserconfigname)|
+| [ `POST /api/v1/sensor/parser/group`](#post-apiv1sensorparsergroup)|
+| [ `GET /api/v1/sensor/parser/group/{name}`](#get-apiv1sensorparsergroupname)|
+| [ `GET /api/v1/sensor/parser/group`](#get-apiv1sensorparsergroup)|
+| [ `DELETE /api/v1/sensor/parser/group/{name}`](#delete-apiv1sensorparsergroupname)|
 | [ `POST /api/v1/stellar/apply/transformations`](#post-apiv1stellarapplytransformations)|
 | [ `GET /api/v1/stellar/list`](#get-apiv1stellarlist)|
 | [ `GET /api/v1/stellar/list/functions`](#get-apiv1stellarlistfunctions)|
@@ -273,11 +413,16 @@ Request and Response objects are JSON formatted.  The JSON schemas are available
 | [ `GET /api/v1/storm/enrichment/deactivate`](#get-apiv1stormenrichmentdeactivate)|
 | [ `GET /api/v1/storm/enrichment/start`](#get-apiv1stormenrichmentstart)|
 | [ `GET /api/v1/storm/enrichment/stop`](#get-apiv1stormenrichmentstop)|
-| [ `GET /api/v1/storm/indexing`](#get-apiv1stormindexing)|
-| [ `GET /api/v1/storm/indexing/activate`](#get-apiv1stormindexingactivate)|
-| [ `GET /api/v1/storm/indexing/deactivate`](#get-apiv1stormindexingdeactivate)|
-| [ `GET /api/v1/storm/indexing/start`](#get-apiv1stormindexingstart)|
-| [ `GET /api/v1/storm/indexing/stop`](#get-apiv1stormindexingstop)|
+| [ `GET /api/v1/storm/indexing/batch`](#get-apiv1stormindexingbatch)|
+| [ `GET /api/v1/storm/indexing/batch/activate`](#get-apiv1stormindexingbatchactivate)|
+| [ `GET /api/v1/storm/indexing/batch/deactivate`](#get-apiv1stormindexingbatchdeactivate)|
+| [ `GET /api/v1/storm/indexing/batch/start`](#get-apiv1stormindexingbatchstart)|
+| [ `GET /api/v1/storm/indexing/batch/stop`](#get-apiv1stormindexingbatchstop)|
+| [ `GET /api/v1/storm/indexing/randomaccess`](#get-apiv1stormindexingrandomaccess)|
+| [ `GET /api/v1/storm/indexing/randomaccess/activate`](#get-apiv1stormindexingrandomaccessactivate)|
+| [ `GET /api/v1/storm/indexing/randomaccess/deactivate`](#get-apiv1stormindexingrandomaccessdeactivate)|
+| [ `GET /api/v1/storm/indexing/randomaccess/start`](#get-apiv1stormindexingrandomaccessstart)|
+| [ `GET /api/v1/storm/indexing/randomaccess/stop`](#get-apiv1stormindexingrandomaccessstop)|
 | [ `GET /api/v1/storm/parser/activate/{name}`](#get-apiv1stormparseractivatename)|
 | [ `GET /api/v1/storm/parser/deactivate/{name}`](#get-apiv1stormparserdeactivatename)|
 | [ `GET /api/v1/storm/parser/start/{name}`](#get-apiv1stormparserstartname)|
@@ -285,45 +430,45 @@ Request and Response objects are JSON formatted.  The JSON schemas are available
 | [ `GET /api/v1/storm/{name}`](#get-apiv1stormname)|
 | [ `GET /api/v1/storm/supervisors`](#get-apiv1stormsupervisors)|
 | [ `PATCH /api/v1/update/patch`](#patch-apiv1updatepatch)|
-| [ `PUT /api/v1/update/replace`](#patch-apiv1updatereplace)|
+| [ `POST /api/v1/update/add/comment`](#put-apiv1updateaddcomment)|
+| [ `POST /api/v1/update/remove/comment`](#put-apiv1updateremovecomment)|
 | [ `GET /api/v1/user`](#get-apiv1user)|
 
-### `POST /api/v1/alert/escalate`
+### `POST /api/v1/alerts/ui/escalate`
   * Description: Escalates a list of alerts by producing it to the Kafka escalate topic
   * Input:
     * alerts - The alerts to be escalated
   * Returns:
     * 200 - Alerts were escalated
 
-### `GET /api/v1/alert/profile`
-  * Description: Retrieves the current user's alerts profile
+### `GET /api/v1/alerts/ui/settings`
+  * Description: Retrieves the current user's settings
   * Returns:
-    * 200 - Alerts profile
-    * 404 - The current user does not have an alerts profile
+    * 200 - User settings
+    * 404 - he current user does not have settings
 
-### `GET /api/v1/alert/profile/all`
-  * Description: Retrieves all users' alerts profiles.  Only users that are part of the "ROLE_ADMIN" role are allowed to get all alerts profiles.
+### `GET /api/v1/alerts/ui/settings/all`
+  * Description: Retrieves all users' settings.  Only users that are part of the "ROLE_ADMIN" role are allowed to get all user settings.
   * Returns:
-    * 200 - List of all alerts profiles
-    * 403 - The current user does not have permission to get all alerts profiles
+    * 200 - List of all user settings
+    * 403 - The current user does not have permission to get all user settings
 
-### `DELETE /api/v1/alert/profile`
-  * Description: Deletes a user's alerts profile.  Only users that are part of the "ROLE_ADMIN" role are allowed to delete user alerts profiles.
+### `DELETE /api/v1/alerts/ui/settings`
+  * Description: Deletes a user's settings.  Only users that are part of the "ROLE_ADMIN" role are allowed to delete user settings.
   * Input:
-    * user - The user whose prolife will be deleted
+    * user - The user whose settings will be deleted
   * Returns:
-    * 200 - Alerts profile was deleted
-    * 403 - The current user does not have permission to delete alerts profiles
-    * 404 - Alerts profile could not be found
+    * 200 - User settings were deleted
+    * 403 - The current user does not have permission to delete user settings
+    * 404 - User settings could not be found
 
-### `POST /api/v1/alert/profile`
-  * Description: Creates or updates the current user's alerts profile
+### `POST /api/v1/alerts/ui/settings`
+  * Description: Creates or updates the current user's settings
   * Input:
-    * alertsProfile - The alerts profile to be saved
+    * alertsUIUserSettings - The user settings to be saved
   * Returns:
-    * 200 - Alerts profile updated. Returns saved alerts profile.
-    * 201 - Alerts profile created. Returns saved alerts profile.
-
+    * 200 - User settings updated. Returns saved settings.
+    * 201 - User settings created. Returns saved settings.
 
 ### `GET /api/v1/global/config`
   * Description: Retrieves the current Global Config from Zookeeper
@@ -479,6 +624,68 @@ Request and Response objects are JSON formatted.  The JSON schemas are available
   * Returns:
     * 200 - Returns 'true' if the status changed and 'false' if it did not.
 
+### `POST /api/v1/pcap/fixed`
+  * Description: Executes a Fixed Filter Pcap Query.
+  * Input:
+    * fixedPcapRequest - A Fixed Pcap Request which includes fixed filter fields like ip source address and protocol
+  * Returns:
+    * 200 - Returns a job status with job ID.
+
+### `POST /api/v1/pcap/query`
+  * Description: Executes a Query Filter Pcap Query.
+  * Input:
+    * queryPcapRequest - A Query Pcap Request which includes Stellar query field
+  * Returns:
+    * 200 - Returns a job status with job ID.
+
+### `GET /api/v1/pcap`
+  * Description: Gets a list of job statuses for Pcap query jobs that match the requested state.
+  * Input:
+    * state - Job state
+  * Returns:
+    * 200 - Returns a list of job statuses for jobs that match the requested state.  
+
+### `GET /api/v1/pcap/{jobId}`
+  * Description: Gets job status for Pcap query job.
+  * Input:
+    * jobId - Job ID of submitted job
+  * Returns:
+    * 200 - Returns a job status for the Job ID.
+    * 404 - Job is missing.
+
+### `GET /api/v1/pcap/{jobId}/pdml`
+  * Description: Gets Pcap Results for a page in PDML format.
+  * Input:
+    * jobId - Job ID of submitted job
+    * page - Page number
+  * Returns:
+    * 200 - Returns PDML in json format.
+    * 404 - Job or page is missing.
+
+### `GET /api/v1/pcap/{jobId}/raw`
+  * Description: Download Pcap Results for a page.
+  * Input:
+    * jobId - Job ID of submitted job
+    * page - Page number
+  * Returns:
+    * 200 - Returns Pcap as a file download.
+    * 404 - Job or page is missing.
+
+### `DELETE /api/v1/pcap/kill/{jobId}`
+  * Description: Kills running job.
+  * Input:
+    * jobId - Job ID of submitted job
+  * Returns:
+    * 200 - Kills passed job.
+
+### `GET /api/v1/pcap/{jobId}/config`
+  * Description: Gets job configuration for Pcap query job.
+  * Input:
+    * jobId - Job ID of submitted job
+  * Returns:
+    * 200 - Returns a map of job properties for the Job ID.
+    * 404 - Job is missing.
+
 ### `POST /api/v1/search/search`
   * Description: Searches the indexing store. GUIDs must be quoted to ensure correct results.
   * Input:
@@ -529,7 +736,7 @@ Request and Response objects are JSON formatted.  The JSON schemas are available
 ### `GET /api/v1/sensor/enrichment/config/list/available/enrichments`
   * Description: Lists the available enrichments
   * Returns:
-    * 200 - Returns a list of available enrichments
+    * 200 - Returns a list of available enrichments in lexicographical order
 
 ### `GET /api/v1/sensor/enrichment/config/list/available/threat/triage/aggregators`
   * Description: Lists the available threat triage aggregators
@@ -638,6 +845,35 @@ Request and Response objects are JSON formatted.  The JSON schemas are available
     * 200 - Returns SensorParserConfig
     * 404 - SensorParserConfig is missing
 
+### `POST /api/v1/sensor/parser/group`
+  * Description: Updates or creates a SensorParserGroup in Zookeeper
+  * Input:
+    * sensorParserGroup - SensorParserGroup
+  * Returns:
+    * 200 - SensorParserGroup updated. Returns saved SensorParserGroup
+    * 201 - SensorParserGroup created. Returns saved SensorParserGroup
+
+### `GET /api/v1/sensor/parser/group/{name}`
+  * Description: Retrieves a SensorParserGroup from Zookeeper
+  * Input:
+    * name - SensorParserGroup name
+  * Returns:
+    * 200 - Returns SensorParserGroup
+    * 404 - SensorParserGroup is missing
+
+### `GET /api/v1/sensor/parser/group`
+  * Description: Retrieves all SensorParserGroups from Zookeeper
+  * Returns:
+    * 200 - Returns all SensorParserGroups
+
+### `DELETE /api/v1/sensor/parser/group/{name}`
+  * Description: Deletes a SensorParserGroup from Zookeeper
+  * Input:
+    * name - SensorParserGroup name
+  * Returns:
+    * 200 - SensorParserGroup was deleted
+    * 404 - SensorParserGroup is missing
+
 ### `POST /api/v1/stellar/apply/transformations`
   * Description: Executes transformations against a sample message
   * Input:
@@ -705,29 +941,57 @@ Request and Response objects are JSON formatted.  The JSON schemas are available
   * Returns:
     * 200 - Returns stop response message
 
-### `GET /api/v1/storm/indexing`
-  * Description: Retrieves the status of the Storm indexing topology
+### `GET /api/v1/storm/indexing/batch`
+  * Description: Retrieves the status of the Storm batch indexing topology
   * Returns:
     * 200 - Returns topology status information
     * 404 - Topology is missing
 
-### `GET /api/v1/storm/indexing/activate`
-  * Description: Activates a Storm indexing topology
+### `GET /api/v1/storm/indexing/batch/activate`
+  * Description: Activates a Storm batch indexing topology
   * Returns:
     * 200 - Returns activate response message
 
-### `GET /api/v1/storm/indexing/deactivate`
-  * Description: Deactivates a Storm indexing topology
+### `GET /api/v1/storm/indexing/batch/deactivate`
+  * Description: Deactivates a Storm batch indexing topology
   * Returns:
     * 200 - Returns deactivate response message
 
-### `GET /api/v1/storm/indexing/start`
-  * Description: Starts a Storm indexing topology
+### `GET /api/v1/storm/indexing/batch/start`
+  * Description: Starts a Storm batch indexing topology
   * Returns:
     * 200 - Returns start response message
 
-### `GET /api/v1/storm/indexing/stop`
-  * Description: Stops a Storm enrichment topology
+### `GET /api/v1/storm/indexing/batch/stop`
+  * Description: Stops a Storm batch indexing topology
+  * Input:
+    * stopNow - Stop the topology immediately
+  * Returns:
+    * 200 - Returns stop response message
+
+### `GET /api/v1/storm/indexing/randomaccess`
+  * Description: Retrieves the status of the Storm randomaccess indexing topology
+  * Returns:
+    * 200 - Returns topology status information
+    * 404 - Topology is missing
+
+### `GET /api/v1/storm/indexing/randomaccess/activate`
+  * Description: Activates a Storm randomaccess indexing topology
+  * Returns:
+    * 200 - Returns activate response message
+
+### `GET /api/v1/storm/indexing/randomaccess/deactivate`
+  * Description: Deactivates a Storm randomaccess indexing topology
+  * Returns:
+    * 200 - Returns deactivate response message
+
+### `GET /api/v1/storm/indexing/randomaccess/start`
+  * Description: Starts a Storm randomaccess indexing topology
+  * Returns:
+    * 200 - Returns start response message
+
+### `GET /api/v1/storm/indexing/randomaccess/stop`
+  * Description: Stops a Storm randomaccess indexing topology
   * Input:
     * stopNow - Stop the topology immediately
   * Returns:
@@ -783,47 +1047,36 @@ Request and Response objects are JSON formatted.  The JSON schemas are available
       * sensorType - The sensor type
       * patch - An array of [RFC 6902](https://tools.ietf.org/html/rfc6902) patches.
     * Example adding a field called `project` with value `metron` to the `bro` message with UUID of `000-000-0000` :
-  ```
-  {
-     "guid" : "000-000-0000",
-     "sensorType" : "bro",
-     "patch" : [
-      {
-                "op": "add"
-               , "path": "/project"
-               , "value": "metron"
-      }
-              ]
-   }
-  ```
+        ```
+        {
+           "guid" : "000-000-0000",
+           "sensorType" : "bro",
+           "patch" : [
+            {
+                      "op": "add"
+                     , "path": "/project"
+                     , "value": "metron"
+            }
+                    ]
+         }
+        ```
   * Returns:
-    * 200 - nothing
-    * 404 - document not found
+    * 200 - Nothing
+    * 404 - Document not found
 
-### `PUT /api/v1/update/replace`
-  * Description: Replace a document
+### `POST /api/v1/update/add/comment`
+  * Description: Add a comment to an alert
   * Input:
-    * request - Replacement request
-      * guid - The Patch UUID
-      * sensorType - The sensor type
-      * replacement - A Map representing the replaced document
-    * Example replacing a `bro` message with guid of `000-000-0000`
-```
-   {
-     "guid" : "000-000-0000",
-     "sensorType" : "bro",
-     "replacement" : {
-       "source:type": "bro",
-       "guid" : "bro_index_2017.01.01.01:1",
-       "ip_src_addr":"192.168.1.2",
-       "ip_src_port": 8009,
-       "timestamp":200,
-       "rejected":false
-      }
-   }
-```
+    * request - Comment add request
   * Returns:
-    * 200 - Current user
+    * 200 - Returns the complete alert document with comments added.
+
+### `POST /api/v1/update/remove/comment`
+  * Description: Remove a comment from an alert
+  * Input:
+    * request - Comment remove request
+  * Returns:
+    * 200 - Returns the complete alert document with comments removed.
 
 ### `GET /api/v1/user`
   * Description: Retrieves the current user
@@ -872,6 +1125,24 @@ METRON_SPRING_OPTIONS="--kerberos.enabled=true"
 ```
 
 The metron-rest application will be available at http://node1:8082/swagger-ui.html#/.
+
+## Local Development
+
+The REST application can be run in DEBUG mode in an IDE (integrated development environment).  This can be a useful tool for development and troubleshooting issues because it enables fast iteration and breakpoints anywhere in code that runs in REST.
+The following instructions are for Intellij.
+
+1. Build Metron from the root directory with `mvn clean install -DskipTests`
+1. Spin up full dev (required to start REST locally)
+1. Create a Run/Debug Configuration in Intellij using the dropdown in the top right or the `Run > Edit Configurations...` menu item
+1. Add a `Spring Boot` Configuration and set the properties as shown in the screenshot below:
+![debug configuration](readme-images/debug-configuration.png)
+1. Using the Maven Projects tab, set check the `local-dev` profile in the `Profiles` section:
+![debug maven profile](readme-images/debug-maven-profile.png)
+1. Start the `REST` Configuration in Debug mode using the Debug button in the top right or the `Run > Debug 'REST'` menu item 
+
+The REST application should now available at `http://localhost:8080/swagger-ui.html`.
+
+Note: Some endpoints may not work correctly due to the networking setup in full dev.  This includes endpoints that connect to Kafka, HDFS and HBase.  Copying the `hbase-site.xml` file from `/etc/hbase/conf/` on full dev to `/metron-interface/metron-rest/src/main/resources` locally will suppress the Zookeeper errors on startup.
 
 ## License
 

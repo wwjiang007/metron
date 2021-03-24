@@ -20,20 +20,18 @@
 package org.apache.metron.stellar.common.shell.specials;
 
 import org.apache.metron.stellar.common.shell.DefaultStellarShellExecutor;
-import org.apache.metron.stellar.common.shell.StellarShellExecutor;
 import org.apache.metron.stellar.common.shell.StellarResult;
-import org.junit.Before;
-import org.junit.Test;
+import org.apache.metron.stellar.common.shell.StellarShellExecutor;
+import org.apache.metron.stellar.dsl.ParseException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 import java.util.Properties;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertNull;
+import static org.junit.jupiter.api.Assertions.*;
 
 
 /**
@@ -44,7 +42,7 @@ public class AssignmentCommandTest {
   AssignmentCommand command;
   StellarShellExecutor executor;
 
-  @Before
+  @BeforeEach
   public void setup() throws Exception {
     command = new AssignmentCommand();
 
@@ -68,7 +66,7 @@ public class AssignmentCommandTest {
             " x := "
     );
     for(String in : inputs) {
-      assertTrue("failed: " + in, command.getMatcher().apply(in));
+      assertTrue(command.getMatcher().apply(in), "failed: " + in);
     }
   }
 
@@ -80,7 +78,7 @@ public class AssignmentCommandTest {
             "x"
     );
     for(String in : inputs) {
-      assertFalse("failed: " + in, command.getMatcher().apply(in));
+      assertFalse(command.getMatcher().apply(in), "failed: " + in);
     }
   }
 
@@ -147,6 +145,22 @@ public class AssignmentCommandTest {
 
     // no assignment should have happened
     assertFalse(executor.getState().containsKey("x"));
+  }
+
+  /**
+   * If an assignment expression fails, the error message should explain
+   * why the expression fails.
+   */
+  @Test
+  public void testErrorMessageWhenAssignmentFails() {
+    String stmt = "0/0";
+    StellarResult result = command.execute("x := " + stmt, executor);
+
+    // validate the result
+    assertTrue(result.isError());
+    assertTrue(result.getException().isPresent());
+    assertEquals(ParseException.class, result.getException().get().getClass());
+    assertTrue(result.getException().get().getMessage().contains(stmt));
   }
 
   @Test

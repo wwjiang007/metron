@@ -16,29 +16,42 @@
  * limitations under the License.
  */
 
-import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges } from '@angular/core';
-import {Router} from '@angular/router';
+import { Component, Input, Output, EventEmitter, OnChanges, SimpleChanges, OnInit, OnDestroy } from '@angular/core';
+import { Subscription } from 'rxjs';
 
 import {Pagination} from '../../../model/pagination';
 import {SortEvent} from '../../../shared/metron-table/metron-table.directive';
 import {ColumnMetadata} from '../../../model/column-metadata';
 import {Alert} from '../../../model/alert';
 import {SearchService} from '../../../service/search.service';
-import {MetronDialogBox} from '../../../shared/metron-dialog-box';
-import {QueryBuilder} from '../query-builder';
 import {Sort} from '../../../utils/enums';
 import {Filter} from '../../../model/filter';
 import {AlertSource} from '../../../model/alert-source';
-import {PatchRequest} from '../../../model/patch-request';
-import {Patch} from '../../../model/patch';
 import {UpdateService} from '../../../service/update.service';
-import {META_ALERTS_INDEX} from '../../../utils/constants';
 import {MetaAlertService} from '../../../service/meta-alert.service';
 import {MetaAlertAddRemoveRequest} from '../../../model/meta-alert-add-remove-request';
 import {GetRequest} from '../../../model/get-request';
+import { GlobalConfigService } from '../../../service/global-config.service';
+import { DialogService } from '../../../service/dialog.service';
+import { ConfirmationType } from 'app/model/confirmation-type';
+import {HttpErrorResponse} from '@angular/common/http';
+
+import { merge } from '../../../shared/context-menu/context-menu.util'
+import * as moment from 'moment/moment';
+import { TimezoneConfigService } from 'app/alerts/configure-rows/timezone-config/timezone-config.service';
 
 export enum MetronAlertDisplayState {
   COLLAPSE, EXPAND
+}
+
+export interface SortChangedEvent {
+  sortBy: string;
+  sortOrder: string;
+}
+
+export interface PageChangedEvent {
+  from: number;
+  size: number;
 }
 
 @Component({
@@ -47,42 +60,49 @@ export enum MetronAlertDisplayState {
   styleUrls: ['./table-view.component.scss']
 })
 
-export class TableViewComponent implements OnChanges {
+export class TableViewComponent implements OnInit, OnChanges, OnDestroy {
 
-  threatScoreFieldName = 'threat:triage:score';
-
-  router: Router;
-  searchService: SearchService;
-  updateService: UpdateService;
   isStatusFieldPresent = false;
-  metronDialogBox: MetronDialogBox;
-  metaAlertService: MetaAlertService;
   metaAlertsDisplayState: {[key: string]: MetronAlertDisplayState} = {};
   metronAlertDisplayState = MetronAlertDisplayState;
+  globalConfig: {} = {};
+  configSubscription: Subscription;
+
+  merge: Function = merge;
+  localTime: boolean;
 
   @Input() alerts: Alert[] = [];
-  @Input() queryBuilder: QueryBuilder;
   @Input() pagination: Pagination;
   @Input() alertsColumnsToDisplay: ColumnMetadata[] = [];
   @Input() selectedAlerts: Alert[] = [];
 
   @Output() onResize = new EventEmitter<void>();
   @Output() onAddFilter = new EventEmitter<Filter>();
-  @Output() onRefreshData = new EventEmitter<boolean>();
+  @Output() onSortChanged = new EventEmitter<SortChangedEvent>();
+  @Output() onPageChanged = new EventEmitter<PageChangedEvent>();
   @Output() onShowDetails = new EventEmitter<Alert>();
   @Output() onShowConfigureTable = new EventEmitter<Alert>();
   @Output() onSelectedAlertsChange = new EventEmitter< Alert[]>();
 
-  constructor(router: Router,
-              searchService: SearchService,
-              metronDialogBox: MetronDialogBox,
-              updateService: UpdateService,
-              metaAlertService: MetaAlertService) {
-    this.router = router;
-    this.searchService = searchService;
-    this.metronDialogBox = metronDialogBox;
-    this.updateService = updateService;
-    this.metaAlertService = metaAlertService;
+  constructor(public searchService: SearchService,
+              public updateService: UpdateService,
+              public metaAlertService: MetaAlertService,
+              public globalConfigService: GlobalConfigService,
+              public dialogService: DialogService,
+              public timezoneConfigService: TimezoneConfigService, ) {
+  }
+
+  ngOnInit() {
+    this.configSubscription = this.globalConfigService.get().subscribe((config: {}) => {
+      this.globalConfig = config;
+      if (this.globalConfig['source.type.field']) {
+        let filteredAlertsColumnsToDisplay = this.alertsColumnsToDisplay.filter(colName => colName.name !== 'source:type');
+        if (filteredAlertsColumnsToDisplay.length < this.alertsColumnsToDisplay.length) {
+          this.alertsColumnsToDisplay = filteredAlertsColumnsToDisplay;
+          this.alertsColumnsToDisplay.splice(2, 0, new ColumnMetadata(this.globalConfig['source.type.field'], 'string'));
+        }
+      }
+    });
   }
 
   ngOnChanges(changes: SimpleChanges) {
@@ -96,9 +116,25 @@ export class TableViewComponent implements OnChanges {
     }
   }
 
+  ngOnDestroy() {
+    this.configSubscription.unsubscribe();
+  }
+
+  threatScoreFieldName() {
+    return this.globalConfig['threat.triage.score.field']
+  }
+
+  hasScore(alertSource) {
+    return !!this.getScore(alertSource);
+  }
+
+  getScore(alertSource) {
+    return alertSource[this.threatScoreFieldName()];
+  }
+
   updateExpandedStateForChangedData(expandedMetaAlerts: string[]) {
     this.alerts.forEach(alert => {
-      if (alert.source.alert && alert.source.alert.length > 0) {
+      if (alert.source.metron_alert && alert.source.metron_alert.length > 0) {
         this.metaAlertsDisplayState[alert.id] = expandedMetaAlerts.indexOf(alert.id) === -1 ?
                                                   MetronAlertDisplayState.COLLAPSE : MetronAlertDisplayState.EXPAND;
       }
@@ -118,14 +154,13 @@ export class TableViewComponent implements OnChanges {
 
   onSort(sortEvent: SortEvent) {
     let sortOrder = (sortEvent.sortOrder === Sort.ASC ? 'asc' : 'desc');
-    let sortBy = sortEvent.sortBy === 'id' ? 'guid' : sortEvent.sortBy;
-    this.queryBuilder.setSort(sortBy, sortOrder);
-    this.onRefreshData.emit(true);
+    let sortBy = sortEvent.sortBy === 'id' ? '_uid' : sortEvent.sortBy;
+    this.onSortChanged.emit({ sortBy, sortOrder });
   }
 
   getValue(alert: Alert, column: ColumnMetadata, formatData: boolean) {
     if (column.name === 'id') {
-      return this.formatValue(column, alert[column.name]);
+      return this.formatValue(column, alert['id']);
     }
 
     return this.getValueFromSource(alert.source, column, formatData);
@@ -135,9 +170,6 @@ export class TableViewComponent implements OnChanges {
     let returnValue = '';
     try {
       switch (column.name) {
-        case 'id':
-          returnValue = alertSource['guid'];
-          break;
         case 'alert_status':
           returnValue = alertSource['alert_status'] ? alertSource['alert_status'] : 'NEW';
           break;
@@ -159,9 +191,12 @@ export class TableViewComponent implements OnChanges {
   }
 
   formatValue(column: ColumnMetadata, returnValue: string) {
+    this.localTime = this.timezoneConfigService.getTimezoneConfig();
     try {
-      if (column.name.endsWith(':ts') || column.name.endsWith('timestamp')) {
-        returnValue = new Date(parseInt(returnValue, 10)).toISOString().replace('T', ' ').slice(0, 19);
+      if ((column.name.endsWith(':ts') || column.name.endsWith('timestamp')) && this.localTime === true) {
+        returnValue = moment.utc(returnValue).local().format('YYYY-MM-DD H:mm:ss');
+      } else if ((column.name.endsWith(':ts') || column.name.endsWith('timestamp')) && this.localTime === false) {
+        returnValue = moment.utc(returnValue).format('YYYY-MM-DD H:mm:ss');
       }
     } catch (e) {}
 
@@ -169,8 +204,7 @@ export class TableViewComponent implements OnChanges {
   }
 
   onPageChange() {
-    this.queryBuilder.setFromAndSize(this.pagination.from, this.pagination.size);
-    this.onRefreshData.emit(false);
+    this.onPageChanged.emit({ from: this.pagination.from, size: this.pagination.size });
   }
 
   selectRow($event, alert: Alert) {
@@ -195,14 +229,13 @@ export class TableViewComponent implements OnChanges {
   }
 
   addFilter(field: string, value: string) {
-    field = (field === 'id') ? 'guid' : field;
+    field = (field === 'id') ? '_id' : field;
     this.onAddFilter.emit(new Filter(field, value));
   }
 
   showMetaAlertDetails($event, alertSource: AlertSource) {
     let alert = new Alert();
     alert.source = alertSource;
-    alert.index = META_ALERTS_INDEX;
     this.showDetails($event, alert);
   }
 
@@ -228,34 +261,47 @@ export class TableViewComponent implements OnChanges {
   }
 
   deleteOneAlertFromMetaAlert($event, alert: Alert, metaAlertIndex: number) {
-    this.metronDialogBox.showConfirmationMessage('Do you wish to remove the alert from the meta alert?').subscribe(response => {
-      if (response) {
-        this.doDeleteOneAlertFromMetaAlert(alert, metaAlertIndex);
-      }
-    });
+    const confirmedSubscription = this.dialogService
+      .launchDialog('Do you wish to remove the alert from the meta alert?')
+      .subscribe(action => {
+        if (action === ConfirmationType.Confirmed) {
+          this.doDeleteOneAlertFromMetaAlert(alert, metaAlertIndex);
+        }
+        confirmedSubscription.unsubscribe();
+      });
     $event.stopPropagation();
   }
 
-  deleteMetaAlert($event, alert: Alert, index: number) {
-    this.metronDialogBox.showConfirmationMessage('Do you wish to remove all the alerts from meta alert?').subscribe(response => {
-      if (response) {
-        this.doDeleteMetaAlert(alert, index);
-      }
-    });
+  deleteMetaAlert($event, alert: Alert) {
+    const confirmedSubscription = this.dialogService
+      .launchDialog('Do you wish to remove all the alerts from meta alert?')
+      .subscribe(action => {
+        if (action === ConfirmationType.Confirmed) {
+          this.doDeleteMetaAlert(alert);
+        }
+        confirmedSubscription.unsubscribe();
+      });
     $event.stopPropagation();
   }
 
   doDeleteOneAlertFromMetaAlert(alert, metaAlertIndex) {
-    let alertToRemove = alert.source.alert[metaAlertIndex];
+    let alertToRemove = alert.source.metron_alert[metaAlertIndex];
     let metaAlertAddRemoveRequest = new MetaAlertAddRemoveRequest();
     metaAlertAddRemoveRequest.metaAlertGuid = alert.source.guid;
-    metaAlertAddRemoveRequest.alerts = [new GetRequest(alertToRemove.guid, alertToRemove['source:type'], '')];
+    metaAlertAddRemoveRequest.alerts = [new GetRequest(alertToRemove.guid, alertToRemove[this.globalConfig['source.type.field']], '')];
 
     this.metaAlertService.removeAlertsFromMetaAlert(metaAlertAddRemoveRequest).subscribe(() => {
+    }, (res: HttpErrorResponse) => {
+      let message = res.error['message'];
+      this.dialogService
+              .launchDialog(message)
+              .subscribe(action => {
+                this.configSubscription.unsubscribe();
+              })
     });
   }
 
-  doDeleteMetaAlert(alert: Alert, index: number) {
+  doDeleteMetaAlert(alert: Alert) {
     this.metaAlertService.updateMetaAlertStatus(alert.source.guid, 'inactive').subscribe(() => {
     });
   }

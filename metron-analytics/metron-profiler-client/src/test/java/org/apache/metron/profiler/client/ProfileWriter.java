@@ -23,9 +23,9 @@ package org.apache.metron.profiler.client;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.client.Durability;
-import org.apache.hadoop.hbase.client.HTableInterface;
+import org.apache.metron.hbase.ColumnList;
 import org.apache.metron.hbase.HTableProvider;
-import org.apache.metron.hbase.bolt.mapper.ColumnList;
+import org.apache.metron.hbase.TableProvider;
 import org.apache.metron.hbase.client.HBaseClient;
 import org.apache.metron.profiler.ProfileMeasurement;
 import org.apache.metron.profiler.ProfilePeriod;
@@ -50,11 +50,11 @@ public class ProfileWriter {
   private HBaseClient hbaseClient;
   private HBaseProfilerClient client;
 
-  public ProfileWriter(RowKeyBuilder rowKeyBuilder, ColumnBuilder columnBuilder, HTableInterface table) {
+  public ProfileWriter(RowKeyBuilder rowKeyBuilder, ColumnBuilder columnBuilder, TableProvider tableProvider, long periodDurationMillis, String tableName, Configuration configuration) {
     this.rowKeyBuilder = rowKeyBuilder;
     this.columnBuilder = columnBuilder;
-    this.hbaseClient = new HBaseClient((c, t) -> table, table.getConfiguration(), table.getName().getNameAsString());
-    this.client = new HBaseProfilerClient(table, rowKeyBuilder, columnBuilder);
+    this.hbaseClient = new HBaseClient(tableProvider, configuration, tableName);
+    this.client = new HBaseProfilerClient(tableProvider, rowKeyBuilder, columnBuilder, periodDurationMillis, tableName, configuration);
   }
 
   /**
@@ -68,21 +68,22 @@ public class ProfileWriter {
   public void write(ProfileMeasurement prototype, int count, List<Object> group, Function<Object, Object> valueGenerator) {
 
     ProfileMeasurement m = prototype;
+    ProfilePeriod period = m.getPeriod();
     for(int i=0; i<count; i++) {
-
       // generate the next value that should be written
       Object nextValue = valueGenerator.apply(m.getProfileValue());
 
-      // create a measurement for the next profile period to be written
-      ProfilePeriod next = m.getPeriod().next();
+      // write the measurement
       m = new ProfileMeasurement()
               .withProfileName(prototype.getProfileName())
               .withEntity(prototype.getEntity())
-              .withPeriod(next.getStartTimeMillis(), prototype.getPeriod().getDurationMillis(), TimeUnit.MILLISECONDS)
+              .withPeriod(period)
               .withGroups(group)
               .withProfileValue(nextValue);
-
       write(m);
+
+      // advance to the next period
+      period = m.getPeriod().next();
     }
   }
 
@@ -99,7 +100,7 @@ public class ProfileWriter {
     hbaseClient.mutate();
   }
 
-  public static void main(String[] args) throws Exception {
+  public static void main(String[] args) {
     RowKeyBuilder rowKeyBuilder = new SaltyRowKeyBuilder();
     ColumnBuilder columnBuilder = new ValueOnlyColumnBuilder();
 
@@ -109,15 +110,16 @@ public class ProfileWriter {
     config.set("hbase.zookeeper.quorum", "node1");
 
     HTableProvider provider = new HTableProvider();
-    HTableInterface table = provider.getTable(config, "profiler");
+    String tableName = "profiler";
 
+    long periodDurationMillis = TimeUnit.MINUTES.toMillis(15);
     long when = System.currentTimeMillis() - TimeUnit.DAYS.toMillis(2);
     ProfileMeasurement measure = new ProfileMeasurement()
             .withProfileName("profile1")
             .withEntity("192.168.66.121")
-            .withPeriod(when, 15, TimeUnit.MINUTES);
+            .withPeriod(when, periodDurationMillis, TimeUnit.MILLISECONDS);
 
-    ProfileWriter writer = new ProfileWriter(rowKeyBuilder, columnBuilder, table);
+    ProfileWriter writer = new ProfileWriter(rowKeyBuilder, columnBuilder, provider, periodDurationMillis, tableName, config);
     writer.write(measure, 2 * 24 * 4, Collections.emptyList(), val -> new Random().nextInt(10));
   }
 }

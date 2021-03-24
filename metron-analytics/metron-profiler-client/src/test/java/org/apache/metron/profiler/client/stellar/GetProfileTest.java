@@ -20,34 +20,28 @@
 
 package org.apache.metron.profiler.client.stellar;
 
-import org.apache.hadoop.hbase.client.HTableInterface;
+import org.apache.hadoop.hbase.client.Table;
 import org.apache.metron.hbase.mock.MockHBaseTableProvider;
-import org.apache.metron.profiler.client.ProfileWriter;
-import org.apache.metron.stellar.dsl.Context;
-import org.apache.metron.stellar.dsl.functions.resolver.SimpleFunctionResolver;
-import org.apache.metron.stellar.dsl.functions.resolver.SingletonFunctionResolver;
 import org.apache.metron.profiler.ProfileMeasurement;
-import org.apache.metron.profiler.client.stellar.FixedLookback;
-import org.apache.metron.profiler.client.stellar.GetProfile;
+import org.apache.metron.profiler.client.ProfileWriter;
 import org.apache.metron.profiler.hbase.ColumnBuilder;
 import org.apache.metron.profiler.hbase.RowKeyBuilder;
 import org.apache.metron.profiler.hbase.SaltyRowKeyBuilder;
 import org.apache.metron.profiler.hbase.ValueOnlyColumnBuilder;
 import org.apache.metron.stellar.common.DefaultStellarStatefulExecutor;
 import org.apache.metron.stellar.common.StellarStatefulExecutor;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Test;
+import org.apache.metron.stellar.dsl.Context;
+import org.apache.metron.stellar.dsl.ParseException;
+import org.apache.metron.stellar.dsl.functions.resolver.SimpleFunctionResolver;
+import org.apache.metron.stellar.dsl.functions.resolver.SingletonFunctionResolver;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
+import java.util.*;
 import java.util.concurrent.TimeUnit;
-import java.util.Map;
-import java.util.HashMap;
-import java.util.Collections;
-import java.util.Arrays;
-import java.util.ArrayList;
-import java.util.List;
 
 import static org.apache.metron.profiler.client.stellar.ProfilerClientConfig.*;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests the GetProfile class.
@@ -77,20 +71,21 @@ public class GetProfileTest {
    * actually does), and then reading that profile data (thereby testing the PROFILE_GET
    * Stellar client implemented in GetProfile).
    *
-   * It runs at @Before time, and sets testclass global variables used by the writers and readers.
+   * It runs at @BeforeEach time, and sets testclass global variables used by the writers and readers.
    * The various writers and readers are in each test case, not here.
    *
    * @return void
    */
-  @Before
+  @BeforeEach
   public void setup() {
     state = new HashMap<>();
-    final HTableInterface table = MockHBaseTableProvider.addToCache(tableName, columnFamily);
+    final Table table = MockHBaseTableProvider.addToCache(tableName, columnFamily);
 
     // used to write values to be read during testing
+    long periodDurationMillis = TimeUnit.MINUTES.toMillis(15);
     RowKeyBuilder rowKeyBuilder = new SaltyRowKeyBuilder();
     ColumnBuilder columnBuilder = new ValueOnlyColumnBuilder(columnFamily);
-    profileWriter = new ProfileWriter(rowKeyBuilder, columnBuilder, table);
+    profileWriter = new ProfileWriter(rowKeyBuilder, columnBuilder, new MockHBaseTableProvider(), periodDurationMillis, tableName, null);
 
     // global properties
     Map<String, Object> global = new HashMap<String, Object>() {{
@@ -118,7 +113,7 @@ public class GetProfileTest {
    * and saltDivisor2, instead of periodDuration, periodUnits and saltDivisor respectively.
    *
    * This is used in the unit tests that test the config_overrides feature of PROFILE_GET.
-   * In these tests, the context from @Before setup() is used to write the data, then the global
+   * In these tests, the context from @BeforeEach setup() is used to write the data, then the global
    * context is changed to context2 (from this method).  Each test validates that a default read
    * using global context2 then gets no valid results (as expected), and that a read using
    * original context values in the PROFILE_GET config_overrides argument gets all expected results.
@@ -175,7 +170,6 @@ public class GetProfileTest {
             .withProfileName("profile1")
             .withEntity("entity1")
             .withPeriod(startTime, periodDuration, periodUnits);
-
     profileWriter.write(m, count, group, val -> expectedValue);
 
     // execute - read the profile values - no groups
@@ -184,7 +178,8 @@ public class GetProfileTest {
     List<Integer> result = run(expr, List.class);
 
     // validate - expect to read all values from the past 4 hours
-    Assert.assertEquals(count, result.size());
+    assertEquals(count, result.size());
+    result.forEach(actual -> assertEquals(expectedValue, actual.intValue()));
   }
 
   /**
@@ -215,14 +210,15 @@ public class GetProfileTest {
     List<Integer> result = run(expr, List.class);
 
     // validate - expect to read all values from the past 4 hours
-    Assert.assertEquals(count, result.size());
+    assertEquals(count, result.size());
 
     // test the deprecated but allowed "varargs" form of groups specification
     expr = "PROFILE_GET('profile1', 'entity1', PROFILE_FIXED(4, 'HOURS'), 'weekends')";
     result = run(expr, List.class);
 
     // validate - expect to read all values from the past 4 hours
-    Assert.assertEquals(count, result.size());
+    assertEquals(count, result.size());
+    result.forEach(actual -> assertEquals(expectedValue, actual.intValue()));
   }
 
   /**
@@ -253,20 +249,21 @@ public class GetProfileTest {
     List<Integer> result = run(expr, List.class);
 
     // validate - expect to read all values from the past 4 hours
-    Assert.assertEquals(count, result.size());
+    assertEquals(count, result.size());
 
     // test the deprecated but allowed "varargs" form of groups specification
     expr = "PROFILE_GET('profile1', 'entity1', PROFILE_FIXED(4, 'HOURS'), 'weekdays', 'tuesday')";
     result = run(expr, List.class);
 
     // validate - expect to read all values from the past 4 hours
-    Assert.assertEquals(count, result.size());
+    assertEquals(count, result.size());
+    result.forEach(actual -> assertEquals(expectedValue, actual.intValue()));
   }
 
   /**
    * Initialization should fail if the required context values are missing.
    */
-  @Test(expected = IllegalStateException.class)
+  @Test
   public void testMissingContext() {
     Context empty = Context.EMPTY_CONTEXT();
 
@@ -278,7 +275,7 @@ public class GetProfileTest {
 
     // validate - function should be unable to initialize
     String expr = "PROFILE_GET('profile1', 'entity1', PROFILE_FIXED(1000, 'SECONDS'), groups)";
-    run(expr, List.class);
+    assertThrows(ParseException.class, () -> run(expr, List.class));
   }
 
   /**
@@ -308,7 +305,7 @@ public class GetProfileTest {
     List<Integer> result = run(expr, List.class);
 
     // validate - there should be no values from only 4 seconds ago
-    Assert.assertEquals(0, result.size());
+    assertEquals(0, result.size());
   }
 
   /**
@@ -321,7 +318,7 @@ public class GetProfileTest {
     List<Integer> result = run(expr, List.class);
 
     // validate - expect to fail to read any values because we didn't write any.
-    Assert.assertEquals(0, result.size());
+    assertEquals(0, result.size());
 
     // execute - read the profile values - with config_override.
     // first two override values are strings, third is deliberately a number.
@@ -336,8 +333,8 @@ public class GetProfileTest {
 
       // validate - expect to read all values from the past 4 hours (16 or 17 values depending on start time)
       // but they should all be the default value.
-      Assert.assertTrue(result.size() == 16 || result.size() == 17);
-      result.forEach(actual -> Assert.assertEquals(defaultVal, actual));
+      assertTrue(result.size() == 16 || result.size() == 17);
+      result.forEach(actual -> assertEquals(defaultVal, actual));
   }
 
   /**
@@ -364,8 +361,8 @@ public class GetProfileTest {
     // validate it is changed in significant way
     @SuppressWarnings("unchecked")
     Map<String, Object> global = (Map<String, Object>) context2.getCapability(Context.Capabilities.GLOBAL_CONFIG).get();
-    Assert.assertEquals(PROFILER_PERIOD.get(global), periodDuration2);
-    Assert.assertNotEquals(periodDuration, periodDuration2);
+    assertEquals(PROFILER_PERIOD.get(global), periodDuration2);
+    assertNotEquals(periodDuration, periodDuration2);
 
     // execute - read the profile values - with (wrong) default global config values.
     // No error message at this time, but returns empty results list, because
@@ -375,7 +372,7 @@ public class GetProfileTest {
     List<Integer> result = run(expr, List.class);
 
     // validate - expect to fail to read any values
-    Assert.assertEquals(0, result.size());
+    assertEquals(0, result.size());
 
     // execute - read the profile values - with config_override.
     // first two override values are strings, third is deliberately a number.
@@ -387,7 +384,8 @@ public class GetProfileTest {
     result = run(expr, List.class);
 
     // validate - expect to read all values from the past 4 hours
-    Assert.assertEquals(count, result.size());
+    assertEquals(count, result.size());
+    result.forEach(actual -> assertEquals(expectedValue, actual.intValue()));
   }
 
   /**
@@ -419,8 +417,8 @@ public class GetProfileTest {
     // validate it is changed in significant way
     @SuppressWarnings("unchecked")
     Map<String, Object> global = (Map<String, Object>) context2.getCapability(Context.Capabilities.GLOBAL_CONFIG).get();
-    Assert.assertEquals(global.get(PROFILER_PERIOD.getKey()), Long.toString(periodDuration2));
-    Assert.assertNotEquals(periodDuration, periodDuration2);
+    assertEquals(global.get(PROFILER_PERIOD.getKey()), Long.toString(periodDuration2));
+    assertNotEquals(periodDuration, periodDuration2);
 
     // execute - read the profile values - with config_override.
     // first two override values are strings, third is deliberately a number.
@@ -434,7 +432,7 @@ public class GetProfileTest {
     List<Integer> result = run(expr, List.class);
 
     // validate - expect to read all values from the past 4 hours
-    Assert.assertEquals(count, result.size());
+    assertEquals(count, result.size());
 
     // execute - read the profile values - with (wrong) default global config values.
     // No error message at this time, but returns empty results list, because
@@ -443,7 +441,6 @@ public class GetProfileTest {
     result = run(expr, List.class);
 
     // validate - expect to fail to read any values
-    Assert.assertEquals(0, result.size());
+    assertEquals(0, result.size());
   }
-
 }

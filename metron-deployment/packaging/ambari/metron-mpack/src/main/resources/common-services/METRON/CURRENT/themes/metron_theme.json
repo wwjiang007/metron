@@ -65,7 +65,7 @@
             "display-name": "Enrichment",
             "layout": {
               "tab-columns": "1",
-              "tab-rows": "3",
+              "tab-rows": "4",
               "sections": [
                 {
                   "name": "section-enrichment-adapters",
@@ -117,6 +117,25 @@
                     {
                       "name": "subsection-enrichment-storm",
                       "display-name": "Storm",
+                      "row-index": "0",
+                      "column-index": "0",
+                      "row-span": "1",
+                      "column-span": "1"
+                    }
+                  ]
+                },
+                {
+                  "name": "section-enrichment-unified",
+                  "row-index": "3",
+                  "column-index": "0",
+                  "row-span": "1",
+                  "column-span": "1",
+                  "section-columns": "1",
+                  "section-rows": "1",
+                  "subsections": [
+                    {
+                      "name": "subsection-enrichment-unified",
+                      "display-name": "Topology",
                       "row-index": "0",
                       "column-index": "0",
                       "row-span": "1",
@@ -183,7 +202,7 @@
                   "subsections": [
                     {
                       "name": "subsection-indexing-storm",
-                      "display-name": "Index Writer - Elasticsearch",
+                      "display-name": "Index Writer - Random Access",
                       "row-index": "0",
                       "column-index": "0",
                       "row-span": "1",
@@ -221,8 +240,27 @@
               "tab-rows": "3",
               "sections": [
                 {
+                  "name": "section-profiler-setup",
+                  "row-index": "0",
+                  "column-index": "0",
+                  "row-span": "1",
+                  "column-span": "1",
+                  "section-columns": "1",
+                  "section-rows": "1",
+                  "subsections": [
+                    {
+                    "name": "subsection-profiler-setup",
+                    "display-name": "Profiler Setup",
+                    "row-index": "0",
+                    "column-index": "0",
+                    "row-span": "1",
+                    "column-span": "1"
+                  }
+                  ]
+                },
+                {
                 "name": "section-profiler-kafka",
-                "row-index": "0",
+                "row-index": "1",
                 "column-index": "0",
                 "row-span": "1",
                 "column-span": "1",
@@ -232,25 +270,6 @@
                   {
                   "name": "subsection-profiler-kafka",
                   "display-name": "Kafka",
-                  "row-index": "0",
-                  "column-index": "0",
-                  "row-span": "1",
-                  "column-span": "1"
-                }
-                ]
-              },
-              {
-                "name": "section-profiler-setup",
-                "row-index": "1",
-                "column-index": "0",
-                "row-span": "1",
-                "column-span": "1",
-                "section-columns": "1",
-                "section-rows": "1",
-                "subsections": [
-                  {
-                  "name": "subsection-profiler-setup",
-                  "display-name": "Profiler Setup",
                   "row-index": "0",
                   "column-index": "0",
                   "row-span": "1",
@@ -270,6 +289,25 @@
                   {
                   "name": "subsection-profiler-storm",
                   "display-name": "Storm",
+                  "row-index": "0",
+                  "column-index": "0",
+                  "row-span": "1",
+                  "column-span": "1"
+                }
+                ]
+              },
+              {
+                "name": "section-profiler-hbase",
+                "row-index": "3",
+                "column-index": "0",
+                "row-span": "1",
+                "column-span": "1",
+                "section-columns": "1",
+                "section-rows": "1",
+                "subsections": [
+                  {
+                  "name": "subsection-profiler-hbase",
+                  "display-name": "HBase",
                   "row-index": "0",
                   "column-index": "0",
                   "row-span": "1",
@@ -363,6 +401,101 @@
                 }
               ]
             }
+          },
+          {
+            "name": "security",
+            "display-name": "Security",
+            "layout": {
+              "tab-columns": "1",
+              "tab-rows": "3",
+              "sections": [
+                {
+                  "name": "section-security-roles",
+                  "row-index": "0",
+                  "column-index": "0",
+                  "row-span": "1",
+                  "column-span": "1",
+                  "section-columns": "1",
+                  "section-rows": "1",
+                  "subsections": [
+                    {
+                      "name": "subsection-security-roles",
+                      "display-name": "Roles",
+                      "row-index": "0",
+                      "column-index": "0",
+                      "row-span": "1",
+                      "column-span": "1"
+                    }
+                  ]
+                },
+                {
+                  "name": "section-security-ldap",
+                  "row-index": "1",
+                  "column-index": "0",
+                  "row-span": "1",
+                  "column-span": "1",
+                  "section-columns": "1",
+                  "section-rows": "1",
+                  "subsections": [
+                    {
+                      "name": "subsection-security-ldap",
+                      "display-name": "LDAP",
+                      "row-index": "0",
+                      "column-index": "0",
+                      "row-span": "1",
+                      "column-span": "1"
+                    }
+                  ]
+                },
+                {
+                  "name": "section-security-knox",
+                  "row-index": "2",
+                  "column-index": "0",
+                  "row-span": "1",
+                  "column-span": "1",
+                  "section-columns": "1",
+                  "section-rows": "1",
+                  "subsections": [
+                    {
+                      "name": "subsection-security-knox",
+                      "display-name": "KNOX",
+                      "row-index": "0",
+                      "column-index": "0",
+                      "row-span": "1",
+                      "column-span": "1"
+                    }
+                  ]
+                }
+              ]
+            }
+          },
+          {
+            "name": "metron-pcap",
+            "display-name": "PCAP",
+            "layout": {
+              "tab-columns": "1",
+              "tab-rows": "1",
+              "sections": [
+                {
+                  "name": "section-pcap",
+                  "row-index": "0",
+                  "column-index": "0",
+                  "row-span": "1",
+                  "column-span": "1",
+                  "section-columns": "1",
+                  "section-rows": "1",
+                  "subsections": [
+                    {
+                      "name": "subsection-pcap",
+                      "row-index": "0",
+                      "column-index": "0",
+                      "row-span": "1",
+                      "column-span": "1"
+                    }
+                  ]
+                }
+              ]
+            }
           }
         ]
       }
@@ -372,10 +505,6 @@
       "configs": [
         {
           "config": "metron-env/es_hosts",
-          "subsection-name": "subsection-index-settings"
-        },
-        {
-          "config": "metron-env/es_binary_port",
           "subsection-name": "subsection-index-settings"
         },
         {
@@ -391,6 +520,10 @@
           "subsection-name": "subsection-index-settings"
         },
         {
+          "config": "metron-env/solr_zookeeper_url",
+          "subsection-name": "subsection-index-settings"
+        },
+        {
           "config": "metron-parsers-env/parsers",
           "subsection-name": "subsection-parsers"
         },
@@ -400,6 +533,10 @@
         },
         {
           "config": "metron-enrichment-env/geoip_url",
+          "subsection-name": "subsection-enrichment-adapters"
+        },
+        {
+          "config": "metron-enrichment-env/asn_url",
           "subsection-name": "subsection-enrichment-adapters"
         },
         {
@@ -427,6 +564,14 @@
           "subsection-name": "subsection-enrichment-kafka"
         },
         {
+          "config": "metron-enrichment-env/enrichment_kafka_writer_batch_size",
+          "subsection-name": "subsection-enrichment-kafka"
+        },
+        {
+          "config": "metron-enrichment-env/enrichment_kafka_writer_batch_timeout",
+          "subsection-name": "subsection-enrichment-kafka"
+        },
+        {
           "config": "metron-enrichment-env/enrichment_workers",
           "subsection-name": "subsection-enrichment-storm"
         },
@@ -443,44 +588,40 @@
           "subsection-name": "subsection-enrichment-storm"
         },
         {
-          "config": "metron-enrichment-env/enrichment_join_cache_size",
+          "config": "metron-enrichment-env/enrichment_topology",
           "subsection-name": "subsection-enrichment-storm"
         },
         {
-          "config": "metron-enrichment-env/threatintel_join_cache_size",
-          "subsection-name": "subsection-enrichment-storm"
+          "config": "metron-enrichment-env/unified_kafka_spout_parallelism",
+          "subsection-name": "subsection-enrichment-unified"
         },
         {
-          "config": "metron-enrichment-env/enrichment_kafka_spout_parallelism",
-          "subsection-name": "subsection-enrichment-storm"
+          "config": "metron-enrichment-env/unified_enrichment_parallelism",
+          "subsection-name": "subsection-enrichment-unified"
         },
         {
-          "config": "metron-enrichment-env/enrichment_split_parallelism",
-          "subsection-name": "subsection-enrichment-storm"
+          "config": "metron-enrichment-env/unified_threat_intel_parallelism",
+          "subsection-name": "subsection-enrichment-unified"
         },
         {
-          "config": "metron-enrichment-env/enrichment_stellar_parallelism",
-          "subsection-name": "subsection-enrichment-storm"
+          "config": "metron-enrichment-env/unified_kafka_writer_parallelism",
+          "subsection-name": "subsection-enrichment-unified"
         },
         {
-          "config": "metron-enrichment-env/enrichment_join_parallelism",
-          "subsection-name": "subsection-enrichment-storm"
+          "config": "metron-enrichment-env/unified_enrichment_cache_size",
+          "subsection-name": "subsection-enrichment-unified"
         },
         {
-          "config": "metron-enrichment-env/threat_intel_split_parallelism",
-          "subsection-name": "subsection-enrichment-storm"
+          "config": "metron-enrichment-env/unified_threat_intel_cache_size",
+          "subsection-name": "subsection-enrichment-unified"
         },
         {
-          "config": "metron-enrichment-env/threat_intel_stellar_parallelism",
-          "subsection-name": "subsection-enrichment-storm"
+          "config": "metron-enrichment-env/unified_enrichment_threadpool_size",
+          "subsection-name": "subsection-enrichment-unified"
         },
         {
-          "config": "metron-enrichment-env/threat_intel_join_parallelism",
-          "subsection-name": "subsection-enrichment-storm"
-        },
-        {
-          "config": "metron-enrichment-env/kafka_writer_parallelism",
-          "subsection-name": "subsection-enrichment-storm"
+          "config": "metron-enrichment-env/unified_enrichment_threadpool_type",
+          "subsection-name": "subsection-enrichment-unified"
         },
         {
           "config": "metron-indexing-env/ra_indexing_kafka_start",
@@ -495,6 +636,10 @@
           "subsection-name": "subsection-indexing-kafka"
         },
         {
+          "config": "metron-indexing-env/indexing_error_topic",
+          "subsection-name": "subsection-indexing-kafka"
+        },
+        {
           "config": "metron-indexing-env/update_hbase_table",
           "subsection-name": "subsection-indexing-update"
         },
@@ -503,7 +648,7 @@
           "subsection-name": "subsection-indexing-update"
         },
         {
-          "config": "metron-indexing-env/ra_indexing_writer_class_name",
+          "config": "metron-indexing-env/ra_indexing_writer",
           "subsection-name": "subsection-indexing-storm"
         },
         {
@@ -534,7 +679,6 @@
           "config": "metron-indexing-env/batch_indexing_topology_max_spout_pending",
           "subsection-name": "subsection-indexing-hdfs"
         },
-
         {
           "config": "metron-indexing-env/ra_indexing_kafka_spout_parallelism",
           "subsection-name": "subsection-indexing-storm"
@@ -543,7 +687,6 @@
           "config": "metron-indexing-env/batch_indexing_kafka_spout_parallelism",
           "subsection-name": "subsection-indexing-hdfs"
         },
-
         {
           "config": "metron-indexing-env/ra_indexing_writer_parallelism",
           "subsection-name": "subsection-indexing-storm"
@@ -568,9 +711,16 @@
           "config": "metron-indexing-env/bolt_hdfs_rotation_policy_count",
           "subsection-name": "subsection-indexing-hdfs"
         },
-
         {
           "config": "metron-profiler-env/profiler_kafka_start",
+          "subsection-name": "subsection-profiler-kafka"
+        },
+        {
+          "config": "metron-profiler-env/profiler_kafka_writer_batch_size",
+          "subsection-name": "subsection-profiler-kafka"
+        },
+        {
+          "config": "metron-profiler-env/profiler_kafka_writer_batch_timeout",
           "subsection-name": "subsection-profiler-kafka"
         },
         {
@@ -582,6 +732,14 @@
           "subsection-name": "subsection-profiler-setup"
         },
         {
+          "config": "metron-profiler-env/profiler_window_duration",
+          "subsection-name": "subsection-profiler-setup"
+        },
+        {
+          "config": "metron-profiler-env/profiler_window_units",
+          "subsection-name": "subsection-profiler-setup"
+        },
+        {
           "config": "metron-profiler-env/profiler_ttl",
           "subsection-name": "subsection-profiler-setup"
         },
@@ -590,20 +748,32 @@
           "subsection-name": "subsection-profiler-setup"
         },
         {
-          "config": "metron-profiler-env/profiler_hbase_table",
+          "config": "metron-profiler-env/profiler_window_lag",
           "subsection-name": "subsection-profiler-setup"
+        },
+        {
+          "config": "metron-profiler-env/profiler_window_lag_units",
+          "subsection-name": "subsection-profiler-setup"
+        },
+        {
+          "config": "metron-profiler-env/profiler_max_routes_per_bolt",
+          "subsection-name": "subsection-profiler-setup"
+        },
+        {
+          "config": "metron-profiler-env/profiler_hbase_table",
+          "subsection-name": "subsection-profiler-hbase"
         },
         {
           "config": "metron-profiler-env/profiler_hbase_cf",
-          "subsection-name": "subsection-profiler-setup"
+          "subsection-name": "subsection-profiler-hbase"
         },
         {
           "config": "metron-profiler-env/profiler_hbase_batch",
-          "subsection-name": "subsection-profiler-setup"
+          "subsection-name": "subsection-profiler-hbase"
         },
         {
           "config": "metron-profiler-env/profiler_hbase_flush_interval",
-          "subsection-name": "subsection-profiler-setup"
+          "subsection-name": "subsection-profiler-hbase"
         },
         {
           "config": "metron-profiler-env/profiler_topology_worker_childopts",
@@ -615,6 +785,34 @@
         },
         {
           "config": "metron-profiler-env/profiler_acker_executors",
+          "subsection-name": "subsection-profiler-storm"
+        },
+        {
+          "config": "metron-profiler-env/profiler_topology_message_timeout_secs",
+          "subsection-name": "subsection-profiler-storm"
+        },
+        {
+          "config": "metron-profiler-env/profiler_topology_max_spout_pending",
+          "subsection-name": "subsection-profiler-storm"
+        },
+        {
+          "config": "metron-profiler-env/profiler_spout_parallelism",
+          "subsection-name": "subsection-profiler-storm"
+        },
+        {
+          "config": "metron-profiler-env/profiler_splitter_parallelism",
+          "subsection-name": "subsection-profiler-storm"
+        },
+        {
+          "config": "metron-profiler-env/profiler_builder_parallelism",
+          "subsection-name": "subsection-profiler-storm"
+        },
+        {
+          "config": "metron-profiler-env/profiler_hbase_writer_parallelism",
+          "subsection-name": "subsection-profiler-storm"
+        },
+        {
+          "config": "metron-profiler-env/profiler_kafka_writer_parallelism",
           "subsection-name": "subsection-profiler-storm"
         },
         {
@@ -670,24 +868,166 @@
           "subsection-name": "subsection-rest"
         },
         {
+          "config": "metron-rest-env/source_type_field",
+          "subsection-name": "subsection-rest"
+        },
+        {
+          "config": "metron-rest-env/threat_triage_score_field",
+          "subsection-name": "subsection-rest"
+        },
+        {
+          "config": "metron-rest-env/storm_status_cache_max_size",
+          "subsection-name": "subsection-rest"
+        },
+        {
+          "config": "metron-rest-env/storm_status_cache_timeout_seconds",
+          "subsection-name": "subsection-rest"
+        },
+        {
           "config": "metron-management-ui-env/metron_management_ui_port",
           "subsection-name": "subsection-management-ui"
         },
         {
           "config": "metron-alerts-ui-env/metron_alerts_ui_port",
           "subsection-name": "subsection-alerts-ui"
+        },
+        {
+          "config": "metron-security-env/metron_user_role",
+          "subsection-name": "subsection-security-roles"
+        },
+        {
+          "config": "metron-security-env/metron_admin_role",
+          "subsection-name": "subsection-security-roles"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.enabled",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.url",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.bind.dn",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.bind.password",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.user.dnpattern",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.user.password",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.user.searchbase",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.user.searchfilter",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.group.searchbase",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.group.searchfilter",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.group.roleattribute",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.ssl.truststore",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.ldap.ssl.truststore.password",
+          "subsection-name": "subsection-security-ldap"
+        },
+        {
+          "config": "metron-security-env/metron.knox.enabled",
+          "subsection-name": "subsection-security-knox"
+        },
+        {
+          "config": "metron-security-env/metron.knox.sso.pubkey",
+          "subsection-name": "subsection-security-knox"
+        },
+        {
+          "config": "metron-security-env/metron.knox.sso.token.ttl",
+          "subsection-name": "subsection-security-knox"
+        },
+        {
+          "config": "metron-pcap-env/pcap_topology_workers",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/pcap_topology_worker_childopts",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/spout_kafka_topic_pcap",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/hdfs_sync_every",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/hdfs_replication_factor",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/kafka_pcap_start",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/kafka_pcap_numpackets",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/kafka_pcap_maxtimems",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/kafka_pcap_tsscheme",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/kafka_pcap_out",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/kafka_pcap_ts_granularity",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/kafka_spout_parallelism",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+        "config": "metron-pcap-env/pcap_page_size",
+        "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/pcap_yarn_queue",
+          "subsection-name": "subsection-pcap"
+        },
+        {
+          "config": "metron-pcap-env/pcap_finalizer_threadpool_size",
+          "subsection-name": "subsection-pcap"
         }
       ]
     },
     "widgets": [
       {
         "config": "metron-env/es_hosts",
-        "widget": {
-          "type": "text-field"
-        }
-      },
-      {
-        "config": "metron-env/es_binary_port",
         "widget": {
           "type": "text-field"
         }
@@ -711,6 +1051,24 @@
         }
       },
       {
+        "config": "metron-env/solr_zookeeper_url",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-rest-env/source_type_field",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-rest-env/threat_triage_score_field",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
         "config": "metron-parsers-env/parsers",
         "widget": {
           "type": "text-field"
@@ -722,9 +1080,14 @@
           "type": "text-field"
         }
       },
-
       {
         "config": "metron-enrichment-env/geoip_url",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-enrichment-env/asn_url",
         "widget": {
           "type": "text-field"
         }
@@ -766,6 +1129,18 @@
         }
       },
       {
+        "config": "metron-enrichment-env/enrichment_kafka_writer_batch_size",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-enrichment-env/enrichment_kafka_writer_batch_timeout",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
         "config": "metron-enrichment-env/enrichment_workers",
         "widget": {
           "type": "text-field"
@@ -787,6 +1162,12 @@
         "config": "metron-enrichment-env/enrichment_topology_max_spout_pending",
         "widget": {
           "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-enrichment-env/enrichment_topology",
+        "widget": {
+          "type": "combo"
         }
       },
       {
@@ -849,7 +1230,54 @@
           "type": "text-field"
         }
       },
-
+      {
+        "config": "metron-enrichment-env/unified_kafka_spout_parallelism",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-enrichment-env/unified_enrichment_parallelism",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-enrichment-env/unified_threat_intel_parallelism",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-enrichment-env/unified_kafka_writer_parallelism",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-enrichment-env/unified_enrichment_cache_size",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-enrichment-env/unified_threat_intel_cache_size",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-enrichment-env/unified_enrichment_threadpool_size",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-enrichment-env/unified_enrichment_threadpool_type",
+        "widget": {
+          "type": "combo"
+        }
+      },
       {
         "config": "metron-indexing-env/batch_indexing_kafka_start",
         "widget": {
@@ -888,9 +1316,9 @@
         }
       },
       {
-        "config": "metron-indexing-env/ra_indexing_writer_class_name",
+        "config": "metron-indexing-env/ra_indexing_writer",
         "widget": {
-          "type": "text-field"
+          "type": "combo"
         }
       },
       {
@@ -905,7 +1333,6 @@
           "type": "text-field"
         }
       },
-
       {
         "config": "metron-indexing-env/batch_indexing_acker_executors",
         "widget": {
@@ -992,6 +1419,18 @@
         }
       },
       {
+        "config": "metron-profiler-env/profiler_kafka_writer_batch_size",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-profiler-env/profiler_kafka_writer_batch_timeout",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
         "config": "metron-profiler-env/profiler_period_duration",
         "widget": {
           "type": "text-field"
@@ -1004,6 +1443,18 @@
         }
       },
       {
+        "config": "metron-profiler-env/profiler_window_duration",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-profiler-env/profiler_window_units",
+        "widget": {
+          "type": "combo"
+        }
+      },
+      {
         "config": "metron-profiler-env/profiler_ttl",
         "widget": {
           "type": "text-field"
@@ -1011,6 +1462,24 @@
       },
       {
         "config": "metron-profiler-env/profiler_ttl_units",
+        "widget": {
+          "type": "combo"
+        }
+      },
+      {
+        "config": "metron-profiler-env/profiler_max_routes_per_bolt",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-profiler-env/profiler_window_lag",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-profiler-env/profiler_window_lag_units",
         "widget": {
           "type": "combo"
         }
@@ -1057,7 +1526,48 @@
           "type": "text-field"
         }
       },
-
+      {
+        "config": "metron-profiler-env/profiler_spout_parallelism",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-profiler-env/profiler_splitter_parallelism",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-profiler-env/profiler_builder_parallelism",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-profiler-env/profiler_hbase_writer_parallelism",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-profiler-env/profiler_kafka_writer_parallelism",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-profiler-env/profiler_topology_max_spout_pending",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-profiler-env/profiler_topology_message_timeout_secs",
+        "widget": {
+          "type": "text-field"
+        }
+      },
       {
         "config": "metron-rest-env/metron_rest_port",
         "widget": {
@@ -1137,6 +1647,36 @@
         }
       },
       {
+        "config": "metron-rest-env/storm_status_cache_max_size",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-rest-env/storm_status_cache_timeout_seconds",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-pcap-env/pcap_page_size",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-pcap-env/pcap_yarn_queue",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-pcap-env/pcap_finalizer_threadpool_size",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
         "config": "metron-management-ui-env/metron_management_ui_port",
         "widget": {
           "type": "text-field"
@@ -1144,6 +1684,186 @@
       },
       {
         "config": "metron-alerts-ui-env/metron_alerts_ui_port",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron_admin_role",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron_user_role",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.enabled",
+        "widget": {
+          "type": "toggle"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.url",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.bind.dn",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.bind.password",
+        "widget": {
+          "type": "password"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.ssl.truststore",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.ssl.truststore.password",
+        "widget": {
+          "type": "password"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.user.dnpattern",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.user.password",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.user.searchbase",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.user.searchfilter",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.group.searchbase",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.group.searchfilter",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.ldap.group.roleattribute",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.knox.enabled",
+        "widget": {
+          "type": "toggle"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.knox.sso.pubkey",
+        "widget": {
+          "type": "text-area"
+        }
+      },
+      {
+        "config": "metron-security-env/metron.knox.sso.token.ttl",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-pcap-env/pcap_topology_workers",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-pcap-env/pcap_topology_worker_childopts",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-pcap-env/spout_kafka_topic_pcap",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-pcap-env/hdfs_sync_every",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-pcap-env/hdfs_replication_factor",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-pcap-env/kafka_pcap_start",
+        "widget": {
+          "type": "combo"
+        }
+      },
+      {
+        "config": "metron-pcap-env/kafka_pcap_numpackets",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-pcap-env/kafka_pcap_maxtimems",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-pcap-env/kafka_pcap_tsscheme",
+        "widget": {
+          "type": "combo"
+        }
+      },
+      {
+        "config": "metron-pcap-env/kafka_pcap_out",
+        "widget": {
+          "type": "text-field"
+        }
+      },
+      {
+        "config": "metron-pcap-env/kafka_pcap_ts_granularity",
+        "widget": {
+          "type": "combo"
+        }
+      },
+      {
+        "config": "metron-pcap-env/kafka_spout_parallelism",
         "widget": {
           "type": "text-field"
         }

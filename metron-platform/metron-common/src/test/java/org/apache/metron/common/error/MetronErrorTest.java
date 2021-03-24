@@ -17,25 +17,31 @@
  */
 package org.apache.metron.common.error;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 import com.google.common.collect.Sets;
-import com.google.common.primitives.Bytes;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+
+import org.apache.commons.lang3.StringUtils;
 import org.apache.metron.common.Constants;
 import org.json.simple.JSONObject;
-import org.junit.Before;
-import org.junit.Test;
-
-import java.util.Arrays;
-
-import static org.apache.metron.common.Constants.ErrorFields.RAW_MESSAGE;
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 public class MetronErrorTest {
 
   private JSONObject message1 = new JSONObject();
   private JSONObject message2 = new JSONObject();
 
-  @Before
+  @BeforeEach
   public void setup() {
     message1.put("value", "message1");
     message2.put("value", "message2");
@@ -46,14 +52,25 @@ public class MetronErrorTest {
     MetronError error = new MetronError()
             .withMessage("test message")
             .withErrorType(Constants.ErrorType.PARSER_ERROR)
-            .withSensorType("sensorType");
+            .withSensorType(Collections.singleton("sensorType"));
 
     JSONObject errorJSON = error.getJSONObject();
     assertEquals("test message", errorJSON.get(Constants.ErrorFields.MESSAGE.getName()));
     assertEquals(Constants.ErrorType.PARSER_ERROR.getType(), errorJSON.get(Constants.ErrorFields.ERROR_TYPE.getName()));
     assertEquals("error", errorJSON.get(Constants.SENSOR_TYPE));
     assertEquals("sensorType", errorJSON.get(Constants.ErrorFields.FAILED_SENSOR_TYPE.getName()));
-    assertTrue(((String) errorJSON.get(Constants.ErrorFields.HOSTNAME.getName())).length() > 0);
+
+    String hostName = null;
+    try {
+      hostName = InetAddress.getLocalHost().getHostName();
+    } catch (UnknownHostException uhe) {
+      // unable to get the hostname on this machine, don't test it
+    }
+
+    if (!StringUtils.isEmpty(hostName)) {
+      assertTrue(((String) errorJSON.get(Constants.ErrorFields.HOSTNAME.getName())).length() > 0);
+      assertEquals(hostName, (String) errorJSON.get(Constants.ErrorFields.HOSTNAME.getName()));
+    }
     assertTrue(((long) errorJSON.get(Constants.ErrorFields.TIMESTAMP.getName())) > 0);
   }
 
@@ -81,7 +98,7 @@ public class MetronErrorTest {
     assertEquals("{\"value\":\"message1\"}", errorJSON.get(Constants.ErrorFields.RAW_MESSAGE.getName() + "_0"));
     assertEquals("{\"value\":\"message2\"}", errorJSON.get(Constants.ErrorFields.RAW_MESSAGE.getName() + "_1"));
 
-    error = new MetronError().addRawMessage("raw message".getBytes());
+    error = new MetronError().addRawMessage("raw message".getBytes(StandardCharsets.UTF_8));
     errorJSON = error.getJSONObject();
     assertEquals("raw message", errorJSON.get(Constants.ErrorFields.RAW_MESSAGE.getName()));
     // It's unclear if we need a rawMessageBytes field so commenting out for now
@@ -105,5 +122,48 @@ public class MetronErrorTest {
     JSONObject errorJSON = error.getJSONObject();
     assertEquals(Sets.newHashSet("field1", "field2"), Sets.newHashSet(((String) errorJSON.get(Constants.ErrorFields.ERROR_FIELDS.getName())).split(",")));
     assertEquals("04a2629c39e098c3944be85f35c75876598f2b44b8e5e3f52c59fa1ac182817c", errorJSON.get(Constants.ErrorFields.ERROR_HASH.getName()));
+  }
+
+  @Test
+  public void shouldIncludeMessageMetadata() {
+    // the metadata that should be included in the error message
+    Map<String, Object> metadata = new HashMap<>();
+    metadata.put("metron.metadata.topic", "bro");
+    metadata.put("metron.metadata.partition", 0);
+    metadata.put("metron.metadata.offset", 123);
+
+    JSONObject message = new JSONObject();
+    message.put("field1", "value1");
+    message.put("field2", "value2");
+
+    MetronError error = new MetronError()
+            .addRawMessage(message)
+            .withMetadata(metadata);
+
+    // expect the metadata to be flattened and folded into the error message
+    JSONObject errorMessage = error.getJSONObject();
+    assertEquals("bro", errorMessage.get("metron.metadata.topic"));
+    assertEquals(0, errorMessage.get("metron.metadata.partition"));
+    assertEquals(123, errorMessage.get("metron.metadata.offset"));
+  }
+
+  @Test
+  public void shouldNotIncludeEmptyMetadata() {
+    // there is no metadata
+    Map<String, Object> metadata = new HashMap<>();
+
+    JSONObject message = new JSONObject();
+    message.put("field1", "value1");
+    message.put("field2", "value2");
+
+    MetronError error = new MetronError()
+            .addRawMessage(message)
+            .withMetadata(metadata);
+
+    // expect the metadata to be flattened and folded into the error message
+    JSONObject errorMessage = error.getJSONObject();
+    assertFalse(errorMessage.containsKey("metron.metadata.topic"));
+    assertFalse(errorMessage.containsKey("metron.metadata.partition"));
+    assertFalse(errorMessage.containsKey("metron.metadata.offset"));
   }
 }

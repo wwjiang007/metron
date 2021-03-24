@@ -31,12 +31,19 @@ For a variety of components (threat intelligence triage and field transformation
     * [Advanced Usage](#advanced-usage)
     * [Implementation](#implementation)
 * [Stellar Configuration](#stellar-configuration)
+* [Stellar REST Client](#stellar-rest-client)
+    * [Configuration](#configuration)
+    * [Security](#security)
+    * [Examples](#examples)
+    * [Latency](#latency)
+    * [Response Handling](#response-handling)
 
 
 ## Introduction
 
 The Stellar language supports the following:
 * Referencing fields in the enriched JSON
+* Referencing all fields in the enriched JSON via the `_` reserved variable name.
 * String literals are quoted with either `'` or `"`
 * String literals support escaping for `'`, `"`, `\t`, `\r`, `\n`, and backslash 
   * The literal `'\'foo\''` would represent `'foo'`
@@ -52,6 +59,20 @@ The Stellar language supports the following:
 * An `in` operator that works like the `in` in Python
 * The ability to have parenthesis to make order of operations explicit
 * User defined functions, including Lambda expressions 
+
+### Boolean Expressions
+
+Variables may be used in boolean expressions and variables which are not
+explicitly boolean may be interpreted as booleans subject to the
+following rules:
+* Similar to python and javascript, empty collections (e.g. `[]`) will be
+  interpreted as `false`
+* Similar to python and javascript, missing variables will be
+  interpreted as `false`
+* Variables set to `null` will be interpreted as `false`
+
+Otherwise, boolean variables will be interpreted as their values
+reflect. 
 
 ### Stellar Language Keywords
 The following keywords need to be single quote escaped in order to be used in Stellar expressions:
@@ -144,6 +165,7 @@ Where:
 | ----------                                                                                         |
 | [ `ABS`](../../metron-analytics/metron-statistics#abs)                                             |
 | [ `APPEND_IF_MISSING`](#append_if_missing)                                                         |
+| [ `ASN_GET`](#asn_get)                                                                             |
 | [ `BIN`](../../metron-analytics/metron-statistics#bin)                                             |
 | [ `BLOOM_ADD`](#bloom_add)                                                                         |
 | [ `BLOOM_EXISTS`](#bloom_exists)                                                                   |
@@ -154,6 +176,7 @@ Where:
 | [ `CHOP`](#chop)                                                                                   |
 | [ `CHOMP`](#chomp)                                                                                 |
 | [ `COUNT_MATCHES`](#count_matches)                                                                 |
+| [ `DATE_FORMAT`](#date_format)                                                                     |
 | [ `DAY_OF_MONTH`](#day_of_month)                                                                   |
 | [ `DAY_OF_WEEK`](#day_of_week)                                                                     |
 | [ `DAY_OF_YEAR`](#day_of_year)                                                                     |
@@ -215,6 +238,8 @@ Where:
 | [ `MAP`](#map)                                                                                     |
 | [ `MAP_EXISTS`](#map_exists)                                                                       |
 | [ `MAP_GET`](#map_get)                                                                             |
+| [ `MAP_MERGE`](#map_merge)                                                                         |
+| [ `MAP_PUT`](#map_put)                                                                             |
 | [ `MAX`](#MAX)                                                                                     |
 | [ `MIN`](#MIN)                                                                                     |
 | [ `MONTH`](#month)                                                                                 |
@@ -226,6 +251,7 @@ Where:
 | [ `OBJECT_GET`](#object_get)                                                                       |
 | [ `PREPEND_IF_MISSING`](#prepend_if_missing)                                                       |
 | [ `PROFILE_GET`](#profile_get)                                                                     |
+| [ `PROFILE_VERBOSE`](#profile_verbose)                                                             |
 | [ `PROFILE_FIXED`](#profile_fixed)                                                                 |
 | [ `PROFILE_WINDOW`](#profile_window)                                                               |
 | [ `PROTOCOL_TO_NAME`](#protocol_to_name)                                                           |
@@ -233,6 +259,7 @@ Where:
 | [ `REGEXP_MATCH`](#regexp_match)                                                                   |
 | [ `REGEXP_GROUP_VAL`](#regexp_group_val)                                                           |
 | [ `REGEXP_REPLACE`](#regexp_replace)                                                               |
+| [ `REST_GET`](#rest_get)                                                                           |
 | [ `ROUND`](#round)                                                                                 |
 | [ `SAMPLE_ADD`](../../metron-analytics/metron-statistics#sample_add)                               |
 | [ `SAMPLE_GET`](../../metron-analytics/metron-statistics#sample_get)                               |
@@ -306,6 +333,13 @@ Where:
     * additionalsuffix - Optional - Additional string suffix that is a valid terminator.
   * Returns: A new String if prefix was prepended, the same string otherwise.
 
+### `ASN_GET`
+* Description: Look up an IPV4 address and returns Autonomous System Number information about it
+* Input:
+    * ip - The IPV4 address to lookup
+    * fields - Optional list of ASN fields to grab. Options are network, autonomous_system_number, autonomous_system_organization.
+* Returns: If a Single field is requested a string of the field, If multiple fields a map of string of the fields, and null otherwise
+
 ### `BLOOM_ADD`
   * Description: Adds an element to the bloom filter passed in
   * Input:
@@ -364,6 +398,14 @@ Where:
     * substring/character - the substring or character to count, may be null.
   * Returns: the number of non-overlapping occurrences, 0 if either CharSequence is null.
 
+### `DATE_FORMAT`
+  * Description: Takes an epoch timestamp and converts it to a date format.
+  * Input:
+    * format - DateTime format as a String.
+    * timestampField - Optional epoch time in Long format.  Defaults to now.
+    * timezone - Optional timezone in String format.
+  * Returns: Formatted date.
+  
 ### `DAY_OF_MONTH`
   * Description: The numbered day within the month.  The first day within the month has a value of 1.
   * Input:
@@ -644,7 +686,7 @@ Where:
   * Description: Determine if an string is an IP or not.
   * Input:
     * ip - An object which we wish to test is an ip
-    * type (optional) - Object of string or collection type (e.g. list) one of IPV4 or IPV6 or both.  The default is IPV4.
+    * type (optional) - Object of string or collection type (e.g. list) one of IPV4 or IPV6 or both.  The default is both IPV4 and IPV6.
   * Returns: True if the string is an IP and false otherwise.
 
 ### `IS_NAN`
@@ -660,9 +702,9 @@ Where:
   * Returns: True if the string is a valid URL and false if otherwise.
 
 ### `JOIN`
-  * Description: Joins the components in the list of strings with the specified delimiter.
+  * Description: Joins the non-null items in the iterable as strings with the specified delimiter. Null items are dropped.
   * Input:
-    * list - List of strings
+    * iterable - Java iterable (e.g. List, LinkedHashSet, etc.) of items treated as strings
     * delim - String delimiter
   * Returns: String
 
@@ -764,6 +806,20 @@ Where:
     * default - Optionally the default value to return if the key is not in the map.
   * Returns: The object associated with the key in the map.  If no value is associated with the key and default is specified, then default is returned. If no value is associated with the key or default, then null is returned.
 
+### `MAP_MERGE`
+  * Description: Merges a list of maps
+  * Input:
+    * maps - A collection of maps to merge. Last entry wins for overlapping keys.
+  * Returns: A Map. null if the list of maps is empty.
+
+### `MAP_PUT`
+  * Description: Adds a key/value pair to a map
+  * Input:
+    * key - The key
+    * value - The value
+    * map - The map to perform the put on
+  * Returns: The original map modified with the key/value. If the map argument is null, a new map will be created and returned that contains the provided key and value - note: if the 'map' argument is null, only the returned map will be non-null and contain the key/value.
+
 ### `MAX`
   * Description: Returns the maximum value of a list of input values.
     * Input:
@@ -835,9 +891,18 @@ Where:
   * Input:
     * profile - The name of the profile.
     * entity - The name of the entity.
-    * periods - The list of profile periods to grab.  These are ProfilePeriod objects.
+    * periods - The list of profile periods to fetch. Use PROFILE_WINDOW or PROFILE_FIXED.
     * groups_list - Optional, must correspond to the 'groupBy' list used in profile creation - List (in square brackets) of groupBy values used to filter the profile. Default is the empty list, meaning groupBy was not used when creating the profile.
     * config_overrides - Optional - Map (in curly braces) of name:value pairs, each overriding the global config parameter of the same name. Default is the empty Map, meaning no overrides.
+  * Returns: The selected profile measurements.
+
+### `PROFILE_VERBOSE`
+  * Description: Retrieves a series of measurements from a stored profile. Returns a map containing the profile name, entity, period id, period start, period end for each profile measurement. Provides a more verbose view of each measurement than PROFILE_GET.
+  * Input:
+    * profile - The name of the profile.
+    * entity - The name of the entity.
+    * periods - The list of profile periods to fetch. Use PROFILE_WINDOW or PROFILE_FIXED.
+    * groups - Optional - The groups to retrieve. Must correspond to the 'groupBy' used during profile creation. Defaults to an empty list, meaning no groups.
   * Returns: The selected profile measurements.
 
 ### `PROFILE_FIXED`
@@ -871,10 +936,10 @@ Where:
   * Returns: The reduction of the list.
   
 ### `REGEXP_MATCH`
-  * Description: Determines whether a regex matches a string
+  * Description: Determines whether a regex matches a string.  If a list of patterns is passed, then the matching is an OR operation
   * Input:
     * string - The string to test
-    * pattern - The proposed regex pattern
+    * pattern - The proposed regex pattern or a list of patterns
   * Returns: True if the regex pattern matches the string and false if otherwise.
   
 ### `REGEXP_GROUP_VAL`
@@ -892,6 +957,23 @@ Where:
     * pattern - The proposed regex pattern
     * value - The value to replace the regex pattern
   * Returns: The modified input string with replaced values
+  
+### `REST_GET`
+  * Description: Performs a REST GET request and parses the JSON results into a map.
+  * Input:
+    * url - URI to the REST service
+    * rest_config - Optional - Map (in curly braces) of name:value pairs, each overriding the global config parameter of the same name. Default is the empty Map, meaning no overrides.
+    * query_parameters - Optional - Map (in curly braces) of name:value pairs that will be added to the request as query parameters
+  * Returns: JSON results as a Map
+  
+### `REST_POST`
+  * Description: Performs a REST POST request and parses the JSON results into a map.
+  * Input:
+    * url - URI to the REST service
+    * post_data - POST data that will be sent in the POST request.  Must be well-formed JSON unless the 'enforce.json' property is set to false.
+    * rest_config - Optional - Map (in curly braces) of name:value pairs, each overriding the global config parameter of the same name. Default is the empty Map, meaning no overrides.
+    * query_parameters - Optional - Map (in curly braces) of name:value pairs that will be added to the request as query parameters
+  * Returns: JSON results as a Map
 
 ### `ROUND`
   * Description: Rounds a number to the nearest integer.  This is half-up rounding.
@@ -1462,7 +1544,7 @@ operating system.
 
 
 ```bash
-metron-stellar/stellar-common/target/stellar-common-0.4.3-stand-alone.tar.gz
+metron-stellar/stellar-common/target/stellar-common-0.7.2-stand-alone.tar.gz
 ```
 
 When unpacked, the following structure will be created:
@@ -1472,7 +1554,7 @@ When unpacked, the following structure will be created:
 ├── bin
 │   └── stellar
 └── lib
-    └── stellar-common-0.4.3-uber.jar
+    └── stellar-common-0.7.2-uber.jar
 ```
 
 To run the Stellar Shell run the following from the directory you unpacked to:
@@ -1575,3 +1657,127 @@ that specify what should be included when searching for Stellar functions.
 }
 ```
 
+## Stellar REST Client
+
+Stellar provides a REST Client with the `REST_GET` and `REST_POST` functions.  This function depends on the Apache HttComponents library for
+executing Http requests.  
+
+### REST GET Syntax
+The REST_GET function requires a URI along with an optional configuration and an optional map of query parameters.  The syntax is:
+```
+REST_GET( uri , optional config , optional query parameters )
+```
+
+### REST POST Syntax
+The REST_POST function requires a URI and POST data along with an optional configuration and an optional map of query parameters.  The syntax is:
+```
+REST_POST( uri , data, optional config , optional query parameters )
+```
+
+### Configuration
+
+Stellar REST functions can be configured several different ways.  Sensible defaults are set for applicable settings with the option to override settings at different levels.
+For REST_GET, configuration settings are applied in this order (last has highest priority):
+1. Default settings
+2. Settings stored in the Global Config for all Stellar REST functions
+3. Settings stored in the Global Config for all Stellar REST_GET calls
+4. Settings passed into the function call as an argument
+
+For REST_POST, configuration settings are applied in this order (last has highest priority):
+1. Default settings
+2. Settings stored in the Global Config for all Stellar REST functions
+3. Settings stored in the Global Config for all Stellar REST_POST calls
+4. Settings passed into the function call as an argument
+
+For example, assume the Global Config is set to:
+```
+{
+  "stellar.rest.settings": {
+    "proxy.basic.auth.user": "global_proxy_user",
+    "basic.auth.user": "global_user",
+    "empty.content.override": "global content override"
+  },
+  "stellar.rest.get.settings": {
+    "basic.auth.user": "rest_get_user",
+    "empty.content.override": "rest get content override"
+  }
+}
+```
+and the function call is:
+```
+REST_GET('some uri', { "empty.content.override": "function config override" } )
+```
+After the various settings are applied in order of priority, the final configuration is:
+```
+{
+  "proxy.basic.auth.user": "global_proxy_user",
+  "basic.auth.user": "rest_get_user",
+  "empty.content.override": "function config override"
+}
+```
+
+The following is a list of settings that are available:
+
+* basic.auth.user - User name for basic authentication.
+* basic.auth.password.path - Path to the basic authentication password file stored in HDFS.
+* proxy.host - Proxy host.
+* proxy.port - Proxy port.
+* proxy.basic.auth.user - User name for proxy basic authentication.
+* proxy.basic.auth.password.path - Path to the proxy basic authentication password file stored in HDFS.
+* timeout - Stellar enforced hard timeout (in milliseconds) for the total request time. HttpClient timeouts alone are insufficient to guarantee the hard timeout. (Defaults to `1000`)
+* connect.timeout - Connect timeout exposed by the HttpClient object.
+* connection.request.timeout - Connection request timeout exposed by the HttpClient object.
+* socket.timeout - Socket timeout exposed by the HttpClient object.
+* response.codes.allowed - A list of response codes that are allowed.  All others will be treated as errors.  (Defaults to `200`)
+* empty.content.override - The default value that will be returned on a successful request with empty content.  (Defaults to null)
+* error.value.override - The default value that will be returned on an error.  (Defaults to null)
+* pooling.max.total - The maximum number of connections in the connection pool.
+* pooling.default.max.per.route - The default maximum number of connections per route in the connection pool.
+* verify.content.length - Setting this to true will verify the actual body content length equals the content length header. (Defaults to false)
+* enforce.json - Setting this to true will verify POST data is well-formed JSON. (Defaults to true)
+
+For security purposes, all passwords are read from a file in HDFS.  Passwords are read as is including any new lines or spaces. Be careful not to include these in the file unless they are specifically part of the password.
+
+### Security
+
+At this time, only basic authentication is supported.  
+
+### Examples
+
+Perform a simple GET request with no authentication:
+```
+[Stellar]>>> REST_GET('http://httpbin.org/get')
+{args={}, headers={Accept=application/json, Accept-Encoding=gzip,deflate, Cache-Control=max-age=259200, Connection=close, Host=httpbin.org, User-Agent=Apache-HttpClient/4.3.2 (java 1.5)}, origin=127.0.0.1, 136.62.241.236, url=http://httpbin.org/get}
+```
+
+Perform a GET request using basic authentication:
+```
+[Stellar]>>> config := {'basic.auth.user': 'user', 'basic.auth.password.path': '/password/path'}
+{basic.auth.user=user, basic.auth.password.path=/password/path}
+[Stellar]>>> REST_GET('http://httpbin.org/basic-auth/user/passwd', config)
+{authenticated=true, user=user}
+```
+
+Perform a GET request using a proxy:
+```
+[Stellar]>>> config := {'proxy.host': 'node1', 'proxy.port': 3128, 'proxy.basic.auth.user': 'user', 'proxy.basic.auth.password.path': '/proxy/password/path'}
+{proxy.basic.auth.password.path=/proxy/password/path, proxy.port=3128, proxy.host=node1, proxy.basic.auth.user=user}
+[Stellar]>>> REST_GET('http://httpbin.org/get', config)
+{args={}, headers={Accept=application/json, Accept-Encoding=gzip,deflate, Cache-Control=max-age=259200, Connection=close, Host=httpbin.org, User-Agent=Apache-HttpClient/4.3.2 (java 1.5)}, origin=127.0.0.1, 136.62.241.236, url=http://httpbin.org/get}
+```
+
+Perform a POST request with additional query parameters:
+```
+
+```
+
+### Latency
+
+Performing a REST request will introduce latency in a streaming pipeline.  Therefore this function should only be used for low volume telemetries that are unlikely to be
+affected by higher latency operations.  The `timeout` setting can be used to guarantee that requests complete within the configured time.
+
+### Response Handling
+
+In cases of Http errors, timeouts, etc this function will log the error and return null.  Only a status code of `200` is considered successful
+by default but this can be changed with the `response.codes.allowed` setting.  Values returned on errors or emtpy content can be changed from 
+the default value of null using the `error.value.override` and `empty.content.override` respectively.

@@ -24,44 +24,26 @@ import com.google.common.collect.Iterables;
 import org.adrianwalker.multilinestring.Multiline;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.api.DeleteBuilder;
-import org.apache.curator.framework.api.GetChildrenBuilder;
-import org.apache.curator.framework.api.GetDataBuilder;
 import org.apache.curator.framework.api.SetDataBuilder;
 import org.apache.metron.common.configuration.ConfigurationType;
 import org.apache.metron.common.configuration.IndexingConfigurations;
 import org.apache.metron.common.configuration.ParserConfigurations;
-import org.apache.metron.common.utils.JSONUtils;
 import org.apache.metron.common.zookeeper.ConfigurationsCache;
 import org.apache.metron.rest.RestException;
 import org.apache.metron.rest.service.SensorIndexingConfigService;
 import org.apache.zookeeper.KeeperException;
 import org.apache.zookeeper.data.Stat;
-import org.junit.Assert;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Collections;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Matchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.*;
 
 @SuppressWarnings("ALL")
 public class SensorIndexingConfigServiceImplTest {
-  @Rule
-  public final ExpectedException exception = ExpectedException.none();
-
   ObjectMapper objectMapper;
   CuratorFramework curatorFramework;
   SensorIndexingConfigService sensorIndexingConfigService;
@@ -79,7 +61,7 @@ public class SensorIndexingConfigServiceImplTest {
   @Multiline
   public static String broJson;
 
-  @Before
+  @BeforeEach
   public void setUp() throws Exception {
     objectMapper = mock(ObjectMapper.class);
     curatorFramework = mock(CuratorFramework.class);
@@ -100,25 +82,20 @@ public class SensorIndexingConfigServiceImplTest {
 
   @Test
   public void deleteShouldProperlyCatchNonNoNodeExceptionAndThrowRestException() throws Exception {
-    exception.expect(RestException.class);
-
     DeleteBuilder builder = mock(DeleteBuilder.class);
 
     when(curatorFramework.delete()).thenReturn(builder);
     when(builder.forPath(ConfigurationType.INDEXING.getZookeeperRoot() + "/bro")).thenThrow(Exception.class);
 
-    assertFalse(sensorIndexingConfigService.delete("bro"));
+    assertThrows(RestException.class, () -> sensorIndexingConfigService.delete("bro"));
   }
 
   @Test
   public void deleteShouldReturnTrueWhenClientSuccessfullyCallsDelete() throws Exception {
     DeleteBuilder builder = mock(DeleteBuilder.class);
-
     when(curatorFramework.delete()).thenReturn(builder);
-    when(builder.forPath(ConfigurationType.INDEXING.getZookeeperRoot() + "/bro")).thenReturn(null);
 
     assertTrue(sensorIndexingConfigService.delete("bro"));
-
     verify(curatorFramework).delete();
   }
 
@@ -157,9 +134,9 @@ public class SensorIndexingConfigServiceImplTest {
     when(cache.get(eq(IndexingConfigurations.class))).thenReturn(indexingConfiguration);
     List<String> indices = new ArrayList<String>();
     Iterables.addAll(indices, sensorIndexingConfigService.getAllIndices("elasticsearch"));
-    Assert.assertEquals(2, indices.size());
-    Assert.assertTrue(indices.contains("bro"));
-    Assert.assertTrue(indices.contains("snort"));
+    assertEquals(2, indices.size());
+    assertTrue(indices.contains("bro"));
+    assertTrue(indices.contains("snort"));
   }
 
   @Test
@@ -179,9 +156,9 @@ public class SensorIndexingConfigServiceImplTest {
     when(cache.get(eq(IndexingConfigurations.class))).thenReturn(indexingConfiguration);
     List<String> indices = new ArrayList<String>();
     Iterables.addAll(indices, sensorIndexingConfigService.getAllIndices("elasticsearch"));
-    Assert.assertEquals(2, indices.size());
-    Assert.assertTrue(indices.contains("renamed_bro"));
-    Assert.assertTrue(indices.contains("snort"));
+    assertEquals(2, indices.size());
+    assertTrue(indices.contains("renamed_bro"));
+    assertTrue(indices.contains("snort"));
   }
 
   @Test
@@ -202,10 +179,10 @@ public class SensorIndexingConfigServiceImplTest {
     when(cache.get(eq(IndexingConfigurations.class))).thenReturn(indexingConfiguration);
     List<String> indices = new ArrayList<String>();
     Iterables.addAll(indices, sensorIndexingConfigService.getAllIndices("elasticsearch"));
-    Assert.assertEquals(3, indices.size());
-    Assert.assertTrue(indices.contains("renamed_bro"));
-    Assert.assertTrue(indices.contains("snort"));
-    Assert.assertTrue(indices.contains("yaf"));
+    assertEquals(3, indices.size());
+    assertTrue(indices.contains("renamed_bro"));
+    assertTrue(indices.contains("snort"));
+    assertTrue(indices.contains("yaf"));
   }
 
   @Test
@@ -219,7 +196,7 @@ public class SensorIndexingConfigServiceImplTest {
     when(cache.get(eq(IndexingConfigurations.class))).thenReturn(indexingConfiguration);
     List<String> indices = new ArrayList<String>();
     Iterables.addAll(indices, sensorIndexingConfigService.getAllIndices("elasticsearch"));
-    Assert.assertEquals(0, indices.size());
+    assertEquals(0, indices.size());
   }
 
   @Test
@@ -259,14 +236,13 @@ public class SensorIndexingConfigServiceImplTest {
 
   @Test
   public void saveShouldWrapExceptionInRestException() throws Exception {
-    exception.expect(RestException.class);
-
     SetDataBuilder setDataBuilder = mock(SetDataBuilder.class);
-    when(setDataBuilder.forPath(ConfigurationType.INDEXING.getZookeeperRoot() + "/bro", broJson.getBytes())).thenThrow(Exception.class);
+    when(setDataBuilder.forPath(ConfigurationType.INDEXING.getZookeeperRoot() + "/bro", broJson.getBytes(
+        StandardCharsets.UTF_8))).thenThrow(Exception.class);
 
     when(curatorFramework.setData()).thenReturn(setDataBuilder);
 
-    sensorIndexingConfigService.save("bro", new HashMap<>());
+    assertThrows(RestException.class, () -> sensorIndexingConfigService.save("bro", new HashMap<>()));
   }
 
   @Test
@@ -276,11 +252,11 @@ public class SensorIndexingConfigServiceImplTest {
     when(objectMapper.writeValueAsString(sensorIndexingConfig)).thenReturn(broJson);
 
     SetDataBuilder setDataBuilder = mock(SetDataBuilder.class);
-    when(setDataBuilder.forPath(ConfigurationType.INDEXING.getZookeeperRoot() + "/bro", broJson.getBytes())).thenReturn(new Stat());
+    when(setDataBuilder.forPath(ConfigurationType.INDEXING.getZookeeperRoot() + "/bro", broJson.getBytes(StandardCharsets.UTF_8))).thenReturn(new Stat());
     when(curatorFramework.setData()).thenReturn(setDataBuilder);
 
     assertEquals(sensorIndexingConfig, sensorIndexingConfigService.save("bro", sensorIndexingConfig));
-    verify(setDataBuilder).forPath(eq(ConfigurationType.INDEXING.getZookeeperRoot() + "/bro"), eq(broJson.getBytes()));
+    verify(setDataBuilder).forPath(eq(ConfigurationType.INDEXING.getZookeeperRoot() + "/bro"), eq(broJson.getBytes(StandardCharsets.UTF_8)));
   }
 
   private Map<String, Object> getTestSensorIndexingConfig() {

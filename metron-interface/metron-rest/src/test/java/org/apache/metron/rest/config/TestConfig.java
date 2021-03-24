@@ -17,14 +17,6 @@
  */
 package org.apache.metron.rest.config;
 
-import static org.apache.metron.rest.MetronRestConstants.TEST_PROFILE;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Properties;
 import kafka.admin.AdminUtils$;
 import kafka.utils.ZKStringSerializer$;
 import kafka.utils.ZkUtils;
@@ -34,24 +26,43 @@ import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.curator.framework.CuratorFrameworkFactory;
 import org.apache.curator.retry.ExponentialBackoffRetry;
+import org.apache.hadoop.hbase.HBaseConfiguration;
+import org.apache.hadoop.hbase.client.Table;
+import org.apache.hadoop.hbase.client.Put;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.metron.common.configuration.ConfigurationsUtils;
 import org.apache.metron.common.zookeeper.ConfigurationsCache;
 import org.apache.metron.common.zookeeper.ZKConfigurationsCache;
+import org.apache.metron.hbase.client.HBaseClient;
 import org.apache.metron.hbase.mock.MockHBaseTableProvider;
 import org.apache.metron.integration.ComponentRunner;
 import org.apache.metron.integration.UnableToStartException;
 import org.apache.metron.integration.components.KafkaComponent;
 import org.apache.metron.integration.components.ZKServerComponent;
-import org.apache.metron.rest.mock.MockStormCLIClientWrapper;
-import org.apache.metron.rest.mock.MockStormRestTemplate;
+import org.apache.metron.job.manager.InMemoryJobManager;
+import org.apache.metron.job.manager.JobManager;
+import org.apache.metron.rest.RestException;
+import org.apache.metron.rest.mock.*;
+import org.apache.metron.rest.service.StormStatusService;
+import org.apache.metron.rest.service.impl.CachedStormStatusServiceImpl;
+import org.apache.metron.rest.service.impl.PcapToPdmlScriptWrapper;
 import org.apache.metron.rest.service.impl.StormCLIWrapper;
+import org.apache.metron.rest.user.UserSettingsClient;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
 import org.springframework.kafka.core.ConsumerFactory;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.web.client.RestTemplate;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.util.*;
+
+import static org.apache.metron.rest.MetronRestConstants.TEST_PROFILE;
 
 @Configuration
 @Profile(TEST_PROFILE)
@@ -95,9 +106,10 @@ public class TestConfig {
     try {
       runner.start();
       File globalConfigFile = new File("src/test/resources/zookeeper/global.json");
-      try(BufferedReader r = new BufferedReader(new FileReader(globalConfigFile))){
+      try(BufferedReader r = new BufferedReader(new InputStreamReader(new FileInputStream(globalConfigFile), StandardCharsets.UTF_8))){
         String globalConfig = IOUtils.toString(r);
-        ConfigurationsUtils.writeGlobalConfigToZookeeper(globalConfig.getBytes(), zkServerComponent.getConnectionString());
+        ConfigurationsUtils.writeGlobalConfigToZookeeper(globalConfig.getBytes(
+            StandardCharsets.UTF_8), zkServerComponent.getConnectionString());
       } catch (Exception e) {
         throw new IllegalStateException("Unable to upload global config", e);
       }
@@ -175,4 +187,57 @@ public class TestConfig {
     return AdminUtils$.MODULE$;
   }
 
+  @Bean()
+  public UserSettingsClient userSettingsClient() throws RestException, IOException {
+    return new UserSettingsClient(new MockHBaseTableProvider().addToCache("user_settings", "cf"), Bytes.toBytes("cf"));
+  }
+
+  @Bean()
+  public HBaseClient hBaseClient() throws RestException, IOException {
+    final String cf = "t";
+    final String cq = "v";
+    Table table = MockHBaseTableProvider.addToCache("enrichment_list", cf);
+    List<String> enrichmentTypes = new ArrayList<String>() {{
+      add("foo");
+      add("bar");
+      add("baz");
+    }};
+    for (String type : enrichmentTypes) {
+      Put put = new Put(Bytes.toBytes(type));
+      put.addColumn(Bytes.toBytes(cf), Bytes.toBytes(cq), "{}".getBytes(StandardCharsets.UTF_8));
+      table.put(put);
+    }
+    return new HBaseClient(new MockHBaseTableProvider(), HBaseConfiguration.create(),
+        "enrichment_list");
+  }
+
+  @Bean
+  public JobManager jobManager() {
+    return new InMemoryJobManager();
+  }
+
+  @Bean
+  public MockPcapJob mockPcapJob() {
+    return new MockPcapJob();
+  }
+
+  @Bean
+  public PcapJobSupplier pcapJobSupplier(MockPcapJob mockPcapJob) {
+    MockPcapJobSupplier mockPcapJobSupplier = new MockPcapJobSupplier();
+    mockPcapJobSupplier.setMockPcapJob(mockPcapJob);
+    return mockPcapJobSupplier;
+  }
+
+  @Bean
+  public PcapToPdmlScriptWrapper pcapToPdmlScriptWrapper() {
+    return new MockPcapToPdmlScriptWrapper();
+  }
+
+  @Bean
+  public StormStatusService stormStatusService(
+      @Autowired @Qualifier("StormStatusServiceImpl") StormStatusService wrappedService) {
+    long maxCacheSize = 0L;
+    long maxCacheTimeoutSeconds = 0L;
+    return new CachedStormStatusServiceImpl(wrappedService, maxCacheSize, maxCacheTimeoutSeconds);
+  }
 }

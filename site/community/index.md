@@ -60,7 +60,7 @@ title: Apache Metron Community
     <tr>
       <td style="text-align: left">Mark Bittmann</td> <td style="text-align: left">mbittmann</td> <td style="text-align: left">PMC</td> </tr>
     <tr>
-      <td style="text-align: left">Brad Kolarov</td> <td style="text-align: left">billie</td> <td style="text-align: left">PMC</td> </tr>
+      <td style="text-align: left">Brad Kolarov</td> <td style="text-align: left">bjkolly</td> <td style="text-align: left">PMC</td> </tr>
     <tr>
       <td style="text-align: left">Dave Hirko</td> <td style="text-align: left">dbhirko</td> <td style="text-align: left">PMC</td> </tr>
     <tr>
@@ -85,6 +85,10 @@ title: Apache Metron Community
       <td style="text-align: left">Jon Zeolla</td> <td style="text-align: left">jonzeolla</td> <td style="text-align: left">Committer</td> </tr>
     <tr>
       <td style="text-align: left">JJ Meyer</td> <td style="text-align: left">jmeyer</td> <td style="text-align: left">Committer</td> </tr>
+    <tr>
+      <td style="text-align: left">Raghu Mitra</td> <td style="text-align: left">iraghumitra</td> <td style="text-align: left">Committer</td> </tr>
+    <tr>
+      <td style="text-align: left">Anand Subramanian</td> <td style="text-align: left">anandsubbu</td> <td style="text-align: left">Committer</td> </tr>
     </tbody>
 </table>
 </section>
@@ -117,11 +121,15 @@ title: Apache Metron Community
             <h4> General & Public Discussion </h4>
                 [<a href="mailto:user-subscribe@metron.apache.org">Subscribe</a>]
                 [<a href="mailto:user-unsubscribe@metron.apache.org">Unsubscribe</a>]
-                [<a href="http://mail-archives.apache.org/mod_mbox/metron-user/">Archives</a>]
+                [<a href="https://lists.apache.org/list.html?user@metron.apache.org">Archives</a>]
             <h4> Code & Documentation Change </h4>
                 [<a href="mailto:dev-subscribe@metron.apache.org">Subscribe</a>]
                 [<a href="mailto:dev-unsubscribe@metron.apache.org">Unsubscribe</a>]
-                [<a href="http://mail-archives.apache.org/mod_mbox/metron-dev/">Archives</a>]
+                [<a href="https://lists.apache.org/list.html?dev@metron.apache.org">Archives</a>]
+            <h4> Issues & Github updates </h4>
+                [<a href="mailto:issues-subscribe@metron.apache.org">Subscribe</a>]
+                [<a href="mailto:issues-unsubscribe@metron.apache.org">Unsubscribe</a>]
+                [<a href="https://lists.apache.org/list.html?issues@metron.apache.org">Archives</a>]
         </div>
 </section>
 

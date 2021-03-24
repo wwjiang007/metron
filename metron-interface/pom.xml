@@ -21,15 +21,18 @@
     <parent>
         <groupId>org.apache.metron</groupId>
         <artifactId>Metron</artifactId>
-        <version>0.4.3</version>
+        <version>0.7.2</version>
     </parent>
     <description>Interfaces for Metron</description>
     <url>https://metron.apache.org/</url>
+    <properties>
+        <jackson.version>2.9.5</jackson.version>
+    </properties>
     <scm>
-        <connection>scm:git:https://git-wip-us.apache.org/repos/asf/metron.git</connection>
-        <developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/metron.git</developerConnection>
+        <connection>scm:git:https://gitbox.apache.org/repos/asf/metron.git</connection>
+        <developerConnection>scm:git:https://gitbox.apache.org/repos/asf/metron.git</developerConnection>
         <tag>HEAD</tag>
-        <url>https://git-wip-us.apache.org/repos/asf/metron</url>
+        <url>https://gitbox.apache.org/repos/asf/metron</url>
     </scm>
     <licenses>
         <license>
@@ -46,12 +49,6 @@
     </modules>
     <dependencies>
         <dependency>
-            <groupId>junit</groupId>
-            <artifactId>junit</artifactId>
-            <version>4.12</version>
-            <scope>test</scope>
-        </dependency>
-        <dependency>
             <groupId>org.adrianwalker</groupId>
             <artifactId>multiline-string</artifactId>
             <version>0.1.2</version>
@@ -62,13 +59,4 @@
         <plugins>
         </plugins>
     </build>
-    <repositories>
-        <repository>
-            <id>multiline-release-repo</id>
-            <url>https://raw.github.com/benelog/multiline/master/maven-repository</url>
-            <snapshots>
-                <enabled>false</enabled>
-            </snapshots>
-        </repository>
-    </repositories>
 </project>

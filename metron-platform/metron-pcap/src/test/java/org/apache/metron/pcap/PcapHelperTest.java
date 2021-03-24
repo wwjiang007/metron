@@ -25,13 +25,25 @@ import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.SequenceFile;
 import org.apache.metron.spout.pcap.Endianness;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
+import org.krakenapps.pcap.decoder.ip.Ipv4Packet;
+import org.krakenapps.pcap.decoder.tcp.TcpPacket;
+import org.krakenapps.pcap.decoder.udp.UdpPacket;
 
 import java.io.IOException;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+
+import static org.apache.metron.common.Constants.Fields;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PcapHelperTest {
   public static List<byte[]> readSamplePackets(String pcapLoc) throws IOException {
@@ -71,8 +83,73 @@ public class PcapHelperTest {
         for(int i = 0;i < reconstitutedPacket.length;++i) {
           System.out.println((i + 1) + ". " + String.format("%02X", pcap[i]) + " = " + String.format("%02X", reconstitutedPacket[i]));
         }
-        Assert.assertArrayEquals(reconstitutedPacket, pcap);
+        assertArrayEquals(reconstitutedPacket, pcap);
       }
     }
+  }
+
+  @Test
+  public void packetToFieldsShouldProperlyParserTcpPackets() throws Exception {
+    PacketInfo packetInfo = mock(PacketInfo.class);
+    when(packetInfo.getPacketBytes()).thenReturn("packet bytes".getBytes(StandardCharsets.UTF_8));
+    TcpPacket tcpPacket = mock(TcpPacket.class);
+    // Tcp source address and port
+    InetAddress tcpSourceInetAddress = mock(InetAddress.class);
+    when(tcpSourceInetAddress.getHostAddress()).thenReturn("tcp source address");
+    when(tcpPacket.getSourceAddress()).thenReturn(tcpSourceInetAddress);
+    InetSocketAddress tcpSourceInetSocketAddress = new InetSocketAddress(22);
+    when(tcpPacket.getSource()).thenReturn(tcpSourceInetSocketAddress);
+    // Tcp destination address and port
+    InetAddress tcpDestinationInetAddress = mock(InetAddress.class);
+    when(tcpDestinationInetAddress.getHostAddress()).thenReturn("tcp destination address");
+    when(tcpPacket.getDestinationAddress()).thenReturn(tcpDestinationInetAddress);
+    InetSocketAddress tcpDestinationInetSocketAddress = new InetSocketAddress(55791);
+    when(tcpPacket.getDestination()).thenReturn(tcpDestinationInetSocketAddress);
+    when(packetInfo.getTcpPacket()).thenReturn(tcpPacket);
+
+    Ipv4Packet ipv4Packet = mock(Ipv4Packet.class);
+    when(ipv4Packet.getProtocol()).thenReturn(6);
+    when(packetInfo.getIpv4Packet()).thenReturn(ipv4Packet);
+
+    Map<String, Object> actualFields = PcapHelper.packetToFields(packetInfo);
+    assertArrayEquals("packet bytes".getBytes(StandardCharsets.UTF_8),
+            (byte[]) actualFields.get(PcapHelper.PacketFields.PACKET_DATA.getName()));
+    assertEquals("tcp source address", actualFields.get(Fields.SRC_ADDR.getName()));
+    assertEquals(22, actualFields.get(Fields.SRC_PORT.getName()));
+    assertEquals("tcp destination address", actualFields.get(Fields.DST_ADDR.getName()));
+    assertEquals(55791, actualFields.get(Fields.DST_PORT.getName()));
+    assertEquals(6, actualFields.get(Fields.PROTOCOL.getName()));
+  }
+
+  @Test
+  public void packetToFieldsShouldProperlyParserUdpPackets() throws Exception {
+    PacketInfo packetInfo = mock(PacketInfo.class);
+    when(packetInfo.getPacketBytes()).thenReturn("packet bytes".getBytes(StandardCharsets.UTF_8));
+
+    UdpPacket udpPacket = mock(UdpPacket.class);
+    // Udp source address and port
+    InetAddress udpSourceInetAddress = mock(InetAddress.class);
+    when(udpSourceInetAddress.getHostAddress()).thenReturn("udp source address");
+    InetSocketAddress udpSourceInetSocketAddress = new InetSocketAddress(udpSourceInetAddress, 68);
+    when(udpPacket.getSource()).thenReturn(udpSourceInetSocketAddress);
+    // Udp destination address and port
+    InetAddress udpDestinationInetAddress = mock(InetAddress.class);
+    when(udpDestinationInetAddress.getHostAddress()).thenReturn("udp destination address");
+    InetSocketAddress udpDestinationInetSocketAddress = new InetSocketAddress(udpDestinationInetAddress, 67);
+    when(udpPacket.getDestination()).thenReturn(udpDestinationInetSocketAddress);
+    when(packetInfo.getUdpPacket()).thenReturn(udpPacket);
+
+    Ipv4Packet ipv4Packet = mock(Ipv4Packet.class);
+    when(ipv4Packet.getProtocol()).thenReturn(17);
+    when(packetInfo.getIpv4Packet()).thenReturn(ipv4Packet);
+
+    Map<String, Object> actualFields = PcapHelper.packetToFields(packetInfo);
+    assertArrayEquals("packet bytes".getBytes(StandardCharsets.UTF_8),
+            (byte[]) actualFields.get(PcapHelper.PacketFields.PACKET_DATA.getName()));
+    assertEquals("udp source address", actualFields.get(Fields.SRC_ADDR.getName()));
+    assertEquals(68, actualFields.get(Fields.SRC_PORT.getName()));
+    assertEquals("udp destination address", actualFields.get(Fields.DST_ADDR.getName()));
+    assertEquals(67, actualFields.get(Fields.DST_PORT.getName()));
+    assertEquals(17, actualFields.get(Fields.PROTOCOL.getName()));
   }
 }

@@ -17,31 +17,21 @@
  */
 import * as moment from 'moment/moment';
 
-import {DEFAULT_TIMESTAMP_FORMAT, META_ALERTS_SENSOR_TYPE} from './constants';
-import {Alert} from '../model/alert';
-import {DateFilterValue} from '../model/date-filter-value';
+import { DEFAULT_TIMESTAMP_FORMAT, META_ALERTS_SENSOR_TYPE } from './constants';
+import { Alert } from '../model/alert';
+import { DateFilterValue } from '../model/date-filter-value';
 
 export class Utils {
-  public static escapeESField(field: string): string {
-    return field.replace(/:/g, '\\:');
-  }
 
-  public static escapeESValue(value: string): string {
-    return String(value)
-    .replace(/[\*\+\-=~><\"\?^\${}\(\)\:\!\/[\]\\\s]/g, '\\$&') // replace single  special characters
-    .replace(/\|\|/g, '\\||') // replace ||
-    .replace(/\&\&/g, '\\&&'); // replace &&
-  }
-
-  public static getAlertSensorType(alert: Alert): string {
-    if (alert.source['source:type'] && alert.source['source:type'].length > 0) {
-      return alert.source['source:type'];
+  public static getAlertSensorType(alert: Alert, sourceType: string): string {
+    if (alert.source[sourceType] && alert.source[sourceType].length > 0) {
+      return alert.source[sourceType];
     } else {
       return META_ALERTS_SENSOR_TYPE;
     }
   }
 
-  public static timeRangeToDateObj(range:string) {
+  public static timeRangeToDateObj(range: string): DateFilterValue {
     let timeRangeToDisplayStr = Utils.timeRangeToDisplayStr(range);
     if (timeRangeToDisplayStr != null) {
       let toDate = new Date((timeRangeToDisplayStr.toDate)).getTime();
@@ -56,10 +46,10 @@ export class Utils {
     return null;
   }
 
-  public static parseTimeRange(range:string) {
-    let parsed = range.replace(/^\(>=/, '')
-    .replace(/\)$/, '')
-    .replace(/<=/, '').split('AND');
+  public static parseTimeRange(range: string): { toDate: number, fromDate: number } {
+    let parsed = range.replace(/^\[/, '')
+    .replace(/]$/, '')
+    .split('TO');
     if (parsed.length === 2 && !isNaN(Number(parsed[0])) && !isNaN(Number(parsed[1]))) {
       return {toDate: Number(parsed[1]), fromDate: Number(parsed[0])};
     }
@@ -70,7 +60,7 @@ export class Utils {
     return null;
   }
 
-  public static timeRangeToDisplayStr(range:string) {
+  public static timeRangeToDisplayStr(range: string): { toDate: string, fromDate: string } {
     let toDate = '';
     let fromDate = '';
 
@@ -200,5 +190,4 @@ export class Utils {
 
     return {toDate: toDate, fromDate: fromDate};
   }
-
 }

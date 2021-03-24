@@ -17,8 +17,8 @@
  */
 import { Component, OnInit } from '@angular/core';
 import {AuthenticationService} from './service/authentication.service';
-
-declare var $;
+import { environment } from 'environments/environment';
+import {AppConfigService} from './service/app-config.service';
 
 @Component({
   selector: 'metron-alerts-root',
@@ -27,25 +27,50 @@ declare var $;
 })
 export class AppComponent implements OnInit {
   loggedIn = false;
+  noTransition = false;
+  isCollapsed = false;
+  hostname = this.appConfigService.getManagementUIHost();
+  centralNavLinks = [
+    {
+      linkName: 'Alerts',
+      iconClass: 'warning',
+      subLinks: [
+        {
+          linkName: 'Overview',
+          routerLink: '/alerts-list'
+        },
+        {
+          linkName: 'PCAP',
+          routerLink: '/pcap'
+        }
+      ]
+    },
+    {
+      linkName: 'Management',
+      iconClass: 'tool',
+      subLinks: [
+        {
+          linkName: 'Sensors',
+          routerLink: ':' + this.appConfigService.getManagementUIPort() + '/sensors',
+          externalLink: true
+        },
+        {
+          linkName: 'General Settings',
+          routerLink: ':' + this.appConfigService.getManagementUIPort() + '/general-settings',
+          externalLink: true
+        }
+      ]
+    }
+  ]
 
-  constructor(private authService: AuthenticationService) {
+  constructor(private authService: AuthenticationService, private appConfigService: AppConfigService) {
     this.authService.onLoginEvent.subscribe(result => {
       this.loggedIn = result;
     });
+    this.noTransition = environment.noTransition;
   }
 
   ngOnInit(): void {
-    $('body').tooltip({
-      trigger : 'hover',
-      selector: '[data-toggle="tooltip"]'
-    });
 
-    $('body').on('show.bs.tooltip	', function () {
-      $('.tooltip').tooltip('hide');
-    });
-
-    $(document).on('click', function () {
-      $('.tooltip').tooltip('hide');
-    });
   }
 }

@@ -15,9 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {Observable} from 'rxjs/Rx';
-import {Headers, RequestOptions} from '@angular/http';
-
+import {Observable} from 'rxjs';
+import {throwError as observableThrowError} from 'rxjs';
+import {catchError, map, onErrorResumeNext} from 'rxjs/operators';
+import { Injectable } from '@angular/core';
 import {HttpUtil} from '../utils/httpUtil';
 import {DataSource} from './data-source';
 import {ColumnMetadata} from '../model/column-metadata';
@@ -33,11 +34,16 @@ import {SaveSearch} from '../model/save-search';
 import {SearchResponse} from '../model/search-response';
 import {SearchRequest} from '../model/search-request';
 import {AlertSource} from '../model/alert-source';
+import { RestError } from '../model/rest-error';
 
+@Injectable()
 export class ElasticSearchLocalstorageImpl extends DataSource {
 
+  globalConfig: {} = {};
+  sourceType: 'source:type';
+
   private defaultColumnMetadata = [
-    new ColumnMetadata('id', 'string'),
+    new ColumnMetadata('guid', 'string'),
     new ColumnMetadata('timestamp', 'date'),
     new ColumnMetadata('source:type', 'string'),
     new ColumnMetadata('ip_src_addr', 'ip'),
@@ -47,26 +53,26 @@ export class ElasticSearchLocalstorageImpl extends DataSource {
     new ColumnMetadata('alert_status', 'string')
   ];
 
-  getAlerts(searchRequest: SearchRequest): Observable<SearchResponse> {
+  getAlerts(searchRequest: SearchRequest): Observable<SearchResponse | RestError> {
     let url = '/search/*' + ElasticsearchUtils.excludeIndexName + '/_search';
     let request: any  = JSON.parse(JSON.stringify(searchRequest));
     request.query = { query_string: { query: searchRequest.query } };
 
-    return this.http.post(url, request, new RequestOptions({headers: new Headers(this.defaultHeaders)}))
-      .map(HttpUtil.extractData)
-      .map(ElasticsearchUtils.extractAlertsData)
-      .catch(HttpUtil.handleError)
-      .onErrorResumeNext();
+    return this.http.post(url, request).pipe(
+      map(HttpUtil.extractData),
+      map(ElasticsearchUtils.extractAlertsData),
+      catchError(HttpUtil.handleError),
+      onErrorResumeNext());
   }
 
   getAlert(sourceType: string, alertId: string): Observable<AlertSource> {
-    return Observable.throw('Method not implemented in ElasticSearchLocalstorageImpl');
+    return observableThrowError('Method not implemented in ElasticSearchLocalstorageImpl');
   }
 
   updateAlertState(request: any): Observable<{}> {
-    return this.http.post('/search/_bulk', request, new RequestOptions({headers: new Headers(this.defaultHeaders)}))
-      .map(HttpUtil.extractData)
-      .catch(HttpUtil.handleError);
+    return this.http.post('/search/_bulk', request).pipe(
+      map(HttpUtil.extractData),
+      catchError(HttpUtil.handleError));
   }
 
   getDefaultAlertTableColumnNames(): Observable<ColumnMetadata[]> {
@@ -76,12 +82,12 @@ export class ElasticSearchLocalstorageImpl extends DataSource {
     });
   }
 
-  getAllFieldNames(): Observable<ColumnMetadata[]> {
+  getAllFieldNames(): Observable<RestError | ColumnMetadata[]> {
     let url = '_cluster/state';
-    return this.http.get(url, new RequestOptions({headers: new Headers(this.defaultHeaders)}))
-      .map(HttpUtil.extractData)
-      .map(ElasticsearchUtils.extractColumnNameData)
-      .catch(HttpUtil.handleError);
+    return this.http.get(url).pipe(
+      map(HttpUtil.extractData),
+      map(ElasticsearchUtils.extractColumnNameData),
+      catchError(HttpUtil.handleError));
   }
 
   getAlertTableColumnNames(): Observable<ColumnNames[]> {

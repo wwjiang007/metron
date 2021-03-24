@@ -20,19 +20,12 @@
 package org.apache.metron.stellar.common.shell;
 
 import com.google.common.collect.ImmutableMap;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-import java.util.Arrays;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Properties;
+import java.util.*;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNotNull;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests the DefaultStellarShellExecutor class.
@@ -42,7 +35,7 @@ public class DefaultStellarShellExecutorTest {
   DefaultStellarShellExecutor executor;
   boolean notified;
 
-  @Before
+  @BeforeEach
   public void setup() throws Exception {
     Properties props = new Properties();
     executor = new DefaultStellarShellExecutor(props, Optional.empty());
@@ -294,5 +287,16 @@ public class DefaultStellarShellExecutorTest {
     assertTrue(result.isSuccess());
     assertTrue(result.getValue().isPresent());
     assertEquals("", result.getValue().get());
+  }
+
+  /**
+   * If the executor is initialized without a connection to Zookeeper, the globals should be
+   * defined, but empty.  This allows a user to '%define' their own with magic commands even
+   * without Zookeeper.
+   */
+  @Test
+  public void testEmptyGlobalsWithNoZookeeper() {
+    assertNotNull(executor.getGlobalConfig());
+    assertEquals(0, executor.getGlobalConfig().size());
   }
 }

@@ -17,21 +17,24 @@
  */
 package org.apache.metron.stellar.zeppelin;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.mock;
-
 import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.metron.stellar.common.shell.VariableResult;
+import org.apache.metron.stellar.dsl.Context;
 import org.apache.zeppelin.interpreter.InterpreterContext;
 import org.apache.zeppelin.interpreter.InterpreterResult;
 import org.apache.zeppelin.interpreter.InterpreterResultMessage;
 import org.apache.zeppelin.interpreter.thrift.InterpreterCompletion;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.Properties;
+
+import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /**
  * Tests the StellarInterpreter.
@@ -41,7 +44,7 @@ public class StellarInterpreterTest {
   private StellarInterpreter interpreter;
   private InterpreterContext context;
 
-  @Before
+  @BeforeEach
   public void setup() {
     Properties props = new Properties();
     interpreter = new StellarInterpreter(props);
@@ -188,5 +191,50 @@ public class StellarInterpreterTest {
 
     // expect no completions
     assertEquals(0, completions.size());
+  }
+
+  /**
+   * No Zookeeper client connection should be made if the Zookeeper URL is not defined
+   */
+  @Test
+  public void testOpenWithNoZookeeperURL() {
+
+    // no zookeeper URL defined
+    Properties props = new Properties();
+
+    // open the interpreter
+    interpreter = new StellarInterpreter(props);
+    interpreter.open();
+
+    // no zookeeper client should be defined
+    Optional<Object> zk = interpreter.getExecutor().getContext().getCapability(Context.Capabilities.ZOOKEEPER_CLIENT, false);
+    assertFalse(zk.isPresent());
+  }
+
+  /**
+   * Ensure that we can run Stellar code in the interpreter.
+   */
+  @Test
+  public void testExecuteStellarMultipleLines() {
+
+    // multi-line input
+    String input =
+            "x := 2 + 2" + System.lineSeparator() +
+            "y := 4 + 4";
+    InterpreterResult result = interpreter.interpret(input, context);
+
+    // expect x == 4 and y == 8
+    Map<String, VariableResult> vars = interpreter.getExecutor().getState();
+    assertEquals(4, vars.get("x").getResult());
+    assertEquals(8, vars.get("y").getResult());
+
+    // validate the result
+    assertEquals(InterpreterResult.Code.SUCCESS, result.code());
+    assertEquals(1, result.message().size());
+
+    // the output is the result of only the 'last' expression
+    InterpreterResultMessage message = result.message().get(0);
+    assertEquals("8", message.getData());
+    assertEquals(InterpreterResult.Type.TEXT, message.getType());
   }
 }

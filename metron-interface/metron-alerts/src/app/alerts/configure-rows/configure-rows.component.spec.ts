@@ -16,8 +16,16 @@
  * limitations under the License.
  */
 import { async, ComponentFixture, TestBed } from '@angular/core/testing';
+import { Injectable } from '@angular/core';
 
 import { ConfigureRowsComponent } from './configure-rows.component';
+import { ConfigureTableService } from '../../service/configure-table.service';
+import { ShowHideAlertEntriesComponent } from './show-hide/show-hide-alert-entries.component';
+import { SwitchComponent } from 'app/shared/switch/switch.component';
+import { TimezoneConfigComponent } from './timezone-config/timezone-config.component';
+
+@Injectable()
+class ConfigureTableServiceStub {}
 
 describe('ConfigureRowsComponent', () => {
   let component: ConfigureRowsComponent;
@@ -25,7 +33,15 @@ describe('ConfigureRowsComponent', () => {
 
   beforeEach(async(() => {
     TestBed.configureTestingModule({
-      declarations: [ ConfigureRowsComponent ]
+      declarations: [
+        ConfigureRowsComponent,
+        ShowHideAlertEntriesComponent,
+        SwitchComponent,
+        TimezoneConfigComponent,
+      ],
+      providers: [
+        { provide: ConfigureTableService, useValue: ConfigureTableServiceStub }
+      ]
     })
     .compileComponents();
   }));
@@ -34,6 +50,10 @@ describe('ConfigureRowsComponent', () => {
     fixture = TestBed.createComponent(ConfigureRowsComponent);
     component = fixture.componentInstance;
     fixture.detectChanges();
+  });
+
+  it('should be created', () => {
+    expect(component).toBeTruthy();
   });
 
 });

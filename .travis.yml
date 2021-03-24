@@ -16,27 +16,52 @@
 
 dist: trusty
 sudo: required
-
-env:
-  - TEST_TYPE=default
+addons:
+  chrome: stable
 
 install: true
 language: java
 jdk:
   - oraclejdk8
 before_install:
-  - wget https://archive.apache.org/dist/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.zip
-  - unzip -qq apache-maven-3.3.9-bin.zip
   - export M2_HOME=$PWD/apache-maven-3.3.9
   - export PATH=$M2_HOME/bin:$PATH
+  - '[[ -d $M2_HOME ]] || curl --retry 10 -O https://archive.apache.org/dist/maven/maven-3/3.3.9/binaries/apache-maven-3.3.9-bin.zip'
+  - '[[ -d $M2_HOME ]] || unzip -qq apache-maven-3.3.9-bin.zip'
   - npm config set cache $HOME/.npm-cache --global
   - npm config set prefix $HOME/.npm-prefix --global
 
-install:
-  - time mvn -q -T 2C -DskipTests clean install
+matrix:
+  fast_finish: true
+  include:
+    - name: Unit Tests
+      script:
+        - time mvn install -T 2C -q -DskipTests=true -Dmaven.javadoc.skip=true -Dskip.npm -B -V
+        - time mvn surefire:test@unit-tests -T 2C
 
-script:
-  - time mvn -q -T 2C surefire:test@unit-tests && time mvn -q surefire:test@integration-tests && time mvn -q test --projects metron-interface/metron-config && time dev-utilities/build-utils/verify_licenses.sh
+    - name: Integration Tests
+      script:
+        - time mvn install -T 2C -q -DskipTests=true -Dmaven.javadoc.skip=true -Dskip.npm -B -V
+        - time mvn surefire:test@integration-tests
+
+    - name: Alerts UI Tests
+      script:
+        - time mvn install -T 2C -q -DskipTests=true -Dmaven.javadoc.skip=true -B -V -pl ':metron-alerts'
+        - time mvn test -pl ':metron-alerts'
+
+    - name: Management UI Tests
+      script:
+        - time mvn install -T 2C -q -DskipTests=true -Dmaven.javadoc.skip=true -B -V -pl ':metron-config'
+        - time mvn test -pl ':metron-config'
+
+    - name: Site Book
+      script:
+        - time mvn clean site -pl site-book
+
+    - name: Verify Licenses
+      script:
+        - time mvn install -T 2C -q -DskipTests=true -Dmaven.javadoc.skip=true -B -V -Dskip.npm
+        - time ./dev-utilities/build-utils/verify_licenses.sh
 
 before_cache:
   - rm -rf $HOME/.m2/repository/org/apache/metron
@@ -49,3 +74,4 @@ cache:
   - metron-interface/metron-config/node_modules
   - $HOME/.m2
   - $HOME/.npm
+  - $M2_HOME

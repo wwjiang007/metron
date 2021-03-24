@@ -18,12 +18,10 @@ limitations under the License.
 
 """
 
-from resource_management.core.logger import Logger
-from resource_management.core.resources.system import Execute, File
-from resource_management.core.exceptions import ExecutionFailed
-from resource_management.libraries.functions.get_user_call_output import get_user_call_output
-
 import metron_service
+from resource_management.core.logger import Logger
+from resource_management.core.resources.system import Execute
+
 
 # Wrap major operations and functionality in this class
 class ManagementUICommands:
@@ -40,7 +38,8 @@ class ManagementUICommands:
         :param env: Environment
         """
         Logger.info('Starting Management UI')
-        Execute("service metron-management-ui start")
+        start_cmd = ('service', 'metron-management-ui', 'start')
+        Execute(start_cmd, sudo=True)
         Logger.info('Done starting Management UI')
 
     def stop_management_ui(self):
@@ -49,7 +48,8 @@ class ManagementUICommands:
         :param env: Environment
         """
         Logger.info('Stopping Management UI')
-        Execute("service metron-management-ui stop")
+        stop_cmd = ('service', 'metron-management-ui', 'stop')
+        Execute(stop_cmd, sudo=True)
         Logger.info('Done stopping Management UI')
 
     def restart_management_ui(self, env):
@@ -58,7 +58,8 @@ class ManagementUICommands:
         :param env: Environment
         """
         Logger.info('Restarting the Management UI')
-        Execute('service metron-management-ui restart')
+        restart_cmd = ('service', 'metron-management-ui', 'restart')
+        Execute(restart_cmd, sudo=True)
         Logger.info('Done restarting the Management UI')
 
     def status_management_ui(self, env):

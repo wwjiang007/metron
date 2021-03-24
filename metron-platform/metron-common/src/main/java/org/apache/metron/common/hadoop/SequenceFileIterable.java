@@ -30,11 +30,11 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.SequenceFile;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.metron.common.utils.LazyLogger;
+import org.apache.metron.common.utils.LazyLoggerFactory;
 
 public class SequenceFileIterable implements Iterable<byte[]> {
-  private static final Logger LOGGER = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+  private static final LazyLogger LOGGER = LazyLoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
   private List<Path> files;
   private Configuration config;
 
@@ -53,10 +53,10 @@ public class SequenceFileIterable implements Iterable<byte[]> {
   }
 
   /**
-   * Cleans up all files read by this Iterable
+   * Cleans up all files read by this Iterable.
    *
    * @return true if success, false if any files were not deleted
-   * @throws IOException
+   * @throws IOException if there's an error cleaning up files
    */
   public boolean cleanup() throws IOException {
     FileSystem fileSystem = FileSystem.get(config);
@@ -86,7 +86,7 @@ public class SequenceFileIterable implements Iterable<byte[]> {
       if (!finished && null == reader) {
         try {
           reader = new SequenceFile.Reader(config, SequenceFile.Reader.file(path));
-          LOGGER.debug("Writing file: {}", path.toString());
+          LOGGER.debug("Writing file: {}", () -> path.toString());
         } catch (IOException e) {
           throw new RuntimeException("Failed to get reader", e);
         }
@@ -110,7 +110,7 @@ public class SequenceFileIterable implements Iterable<byte[]> {
     }
 
     private void close() {
-      LOGGER.debug("Closing file: {}", path.toString());
+      LOGGER.debug("Closing file: {}", () -> path.toString());
       finished = true;
       try {
         if (reader != null) {

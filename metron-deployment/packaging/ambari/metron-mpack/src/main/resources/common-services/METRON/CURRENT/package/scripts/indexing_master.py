@@ -15,20 +15,24 @@ limitations under the License.
 """
 
 import os
-import requests
+
+import errno
+
+import metron_service
+from ambari_commons.os_family_impl import OsFamilyFuncImpl, OsFamilyImpl
+from indexing_commands import IndexingCommands
+from metron_security import storm_security_setup
 from resource_management.core.exceptions import ComponentIsNotRunning
 from resource_management.core.logger import Logger
 from resource_management.core.resources.system import Execute
 from resource_management.core.resources.system import File
-from resource_management.core.source import Template
-from resource_management.libraries.functions.format import format
 from resource_management.core.source import StaticFile
+from resource_management.core.source import Template
 from resource_management.libraries.functions import format as ambari_format
+from resource_management.libraries.functions.format import format
 from resource_management.libraries.script import Script
-
-from metron_security import storm_security_setup
-import metron_service
-from indexing_commands import IndexingCommands
+from resource_management.libraries.functions.get_user_call_output import \
+    get_user_call_output
 
 
 class Indexing(Script):
@@ -44,8 +48,14 @@ class Indexing(Script):
         env.set_params(params)
 
         Logger.info("Running indexing configure")
+        metron_service.check_indexer_parameters()
         File(format("{metron_config_path}/elasticsearch.properties"),
              content=Template("elasticsearch.properties.j2"),
+             owner=params.metron_user,
+             group=params.metron_group
+             )
+        File(format("{metron_config_path}/solr.properties"),
+             content=Template("solr.properties.j2"),
              owner=params.metron_user,
              group=params.metron_group
              )
@@ -87,17 +97,22 @@ class Indexing(Script):
         env.set_params(params)
         self.configure(env)
         commands = IndexingCommands(params)
+        if params.ra_indexing_writer == 'Solr':
+            # Install Solr schemas
+            if not commands.is_solr_schema_installed():
+                if commands.solr_schema_install(env):
+                    commands.set_solr_schema_installed()
 
-        # Install elasticsearch templates
-        try:
+        elif params.ra_indexing_writer == 'Elasticsearch':
+            # Install elasticsearch templates
             if not commands.is_elasticsearch_template_installed():
-                self.elasticsearch_template_install(env)
-                commands.set_elasticsearch_template_installed()
+                if self.elasticsearch_template_install(env):
+                    commands.set_elasticsearch_template_installed()
 
-        except Exception as e:
-            msg = "WARNING: Elasticsearch index templates could not be installed.  " \
-                  "Is Elasticsearch running?  Will reattempt install on next start.  error={0}"
-            Logger.warning(msg.format(e))
+        else :
+            msg = "WARNING:  index schemas/templates could not be installed.  " \
+                  "Is Indexing server configured properly ?  Will reattempt install on next start.  index server configured={0}"
+            Logger.warning(msg.format(params.ra_indexing_writer))
 
         commands.start_indexing_topology(env)
 
@@ -119,6 +134,24 @@ class Indexing(Script):
         env.set_params(params)
         self.configure(env)
         commands = IndexingCommands(params)
+
+        if params.ra_indexing_writer == 'Solr':
+            # Install Solr schemas
+            if not commands.is_solr_schema_installed():
+                if commands.solr_schema_install(env):
+                    commands.set_solr_schema_installed()
+
+        elif params.ra_indexing_writer == 'Elasticsearch':
+            # Install elasticsearch templates
+            if not commands.is_elasticsearch_template_installed():
+                if self.elasticsearch_template_install(env):
+                    commands.set_elasticsearch_template_installed()
+
+        else :
+            msg = "WARNING:  index schemas/templates could not be installed.  " \
+                  "Is Indexing server configured properly ?  Will reattempt install on next start.  index server configured={0}"
+            Logger.warning(msg.format(params.ra_indexing_writer))
+
         commands.restart_indexing_topology(env)
 
     def elasticsearch_template_install(self, env):
@@ -126,47 +159,88 @@ class Indexing(Script):
         env.set_params(params)
         Logger.info("Installing Elasticsearch index templates")
 
-        commands = IndexingCommands(params)
-        for template_name, template_path in commands.get_templates().iteritems():
+        try:
+            metron_service.check_indexer_parameters()
+            commands = IndexingCommands(params)
+            for template_name, template_path in commands.get_templates().iteritems():
+                # install the index template
+                File(template_path, mode=0755, content=StaticFile("{0}.template".format(template_name)))
+                cmd = "curl -s -XPOST http://{0}/_template/{1} -d @{2}"
+                Execute(
+                  cmd.format(params.es_http_url, template_name, template_path),
+                  logoutput=True)
+            return True
 
-            # install the index template
-            File(template_path, mode=0755, content=StaticFile("{0}.template".format(template_name)))
-            cmd = "curl -s -XPOST http://{0}/_template/{1} -d @{2}"
-            Execute(
-              cmd.format(params.es_http_url, template_name, template_path),
-              logoutput=True)
+        except Exception as e:
+            msg = "WARNING: Elasticsearch index templates could not be installed.  " \
+                  "Is Elasticsearch running?  Will reattempt install on next start.  error={0}"
+            Logger.warning(msg.format(e))
+            return False
 
     def elasticsearch_template_delete(self, env):
         from params import params
         env.set_params(params)
         Logger.info("Deleting Elasticsearch index templates")
+        metron_service.check_indexer_parameters()
 
         commands = IndexingCommands(params)
         for template_name in commands.get_templates():
+
             # delete the index template
             cmd = "curl -s -XDELETE \"http://{0}/_template/{1}\""
             Execute(
               cmd.format(params.es_http_url, template_name),
               logoutput=True)
 
+    @OsFamilyFuncImpl(os_family=OsFamilyImpl.DEFAULT)
+    def kibana_dashboard_install(self, env):
+      from params import params
+      env.set_params(params)
+      metron_service.check_indexer_parameters()
+
+      Logger.info("Connecting to Elasticsearch on: %s" % (params.es_http_url))
+      kibanaTemplate = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard', 'kibana.template')
+      if not os.path.isfile(kibanaTemplate):
+        raise IOError(
+            errno.ENOENT, os.strerror(errno.ENOENT), kibanaTemplate)
+
+      Logger.info("Loading .kibana index template from %s" % kibanaTemplate)
+      template_cmd = ambari_format(
+          'curl -s -XPOST http://{es_http_url}/_template/.kibana -d @%s' % kibanaTemplate)
+      Execute(template_cmd, logoutput=True)
+
+      kibanaDashboardLoad = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'dashboard', 'dashboard-bulkload.json')
+      if not os.path.isfile(kibanaDashboardLoad):
+        raise IOError(
+            errno.ENOENT, os.strerror(errno.ENOENT), kibanaDashboardLoad)
+
+      Logger.info("Loading .kibana dashboard from %s" % kibanaDashboardLoad)
+
+      kibana_cmd = ambari_format(
+          'curl -s -H "Content-Type: application/x-ndjson" -XPOST http://{es_http_url}/.kibana/_bulk --data-binary @%s' % kibanaDashboardLoad)
+      Execute(kibana_cmd, logoutput=True)
+
     def zeppelin_notebook_import(self, env):
         from params import params
         env.set_params(params)
-        commands = IndexingCommands(params)
+        metron_service.check_indexer_parameters()
 
+        commands = IndexingCommands(params)
         Logger.info(ambari_format('Searching for Zeppelin Notebooks in {metron_config_zeppelin_path}'))
 
         # Check if authentication is configured on Zeppelin server, and fetch details if enabled.
-        ses = requests.session()
-        ses = commands.get_zeppelin_auth_details(ses, params.zeppelin_server_url, env)
+        session_id = commands.get_zeppelin_auth_details(params.zeppelin_server_url, env)
         for dirName, subdirList, files in os.walk(params.metron_config_zeppelin_path):
             for fileName in files:
                 if fileName.endswith(".json"):
                     Logger.info("Importing notebook: " + fileName)
-                    zeppelin_import_url = ambari_format('http://{zeppelin_server_url}/api/notebook/import')
-                    zeppelin_notebook = {'file' : open(os.path.join(dirName, fileName), 'rb')}
-                    res = ses.post(zeppelin_import_url, files=zeppelin_notebook)
-                    Logger.info("Result: " + res.text)
+                    zeppelin_notebook = os.path.join(dirName, fileName)
+                    zeppelin_import_url = 'curl -i -b \"{0}\" http://{1}/api/notebook/import -d @\'{2}\''
+                    zeppelin_import_url = zeppelin_import_url.format(session_id, params.zeppelin_server_url, zeppelin_notebook)
+                    return_code, import_result, stderr = get_user_call_output(zeppelin_import_url, user=params.metron_user)
+                    Logger.info("Status of importing notebook: " + import_result)
+                    if return_code != 0:
+                        Logger.error("Error importing notebook: " + fileName + " Error Message: " + stderr)
 
 if __name__ == "__main__":
     Indexing().execute()

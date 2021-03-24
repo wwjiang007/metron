@@ -52,7 +52,7 @@ public class DateValidation implements FieldValidation, Predicate<List<Object>> 
    *
    * @param strings the input argument
    * @return {@code true} if the input argument matches the predicate,
-   * otherwise {@code false}
+   *     otherwise {@code false}
    */
   @Override
   public boolean test(List<Object> strings) {
@@ -67,6 +67,7 @@ public class DateValidation implements FieldValidation, Predicate<List<Object>> 
       }
       try {
         SimpleDateFormat sdf = new SimpleDateFormat(format.toString());
+        sdf.setLenient(false);
         sdf.parse(date.toString());
         return true;
       }
@@ -106,6 +107,7 @@ public class DateValidation implements FieldValidation, Predicate<List<Object>> 
       return false;
     }
     SimpleDateFormat sdf = new SimpleDateFormat(format);
+    sdf.setLenient(false);
     for(Object o : input.values()) {
       if(o == null) {
         return true;
@@ -126,6 +128,7 @@ public class DateValidation implements FieldValidation, Predicate<List<Object>> 
       throw new IllegalStateException("You must specify '" + Config.FORMAT.key + "' in the config");
     }
     SimpleDateFormat sdf = new SimpleDateFormat(format);
+    sdf.setLenient(false);
     try {
       sdf.format(new Date());
     }

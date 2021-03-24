@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 import {SortField} from './sort-field';
-import {DEFAULT_FACETS, DEFAULT_GROUPS, INDEXES} from '../utils/constants';
+import { INDEXES } from '../utils/constants';
 
 export class SearchRequest {
   fields: string[];
@@ -25,5 +25,5 @@ export class SearchRequest {
   query: string;
   size: number;
   sort: SortField[];
-  facetFields: string[] = Array.from(new Set(DEFAULT_FACETS.concat(DEFAULT_GROUPS)));
+  facetFields: string[] = [];
 }

@@ -18,22 +18,28 @@
 package org.apache.metron.common.configuration.profiler;
 
 import com.fasterxml.jackson.annotation.JsonCreator;
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonValue;
+
+import java.io.Serializable;
 
 /**
  * A Stellar expression that is executed to produce a single
  * measurement that is persisted within the profile store.
  */
-public class ProfileResultExpressions {
+public class ProfileResultExpressions implements Serializable {
 
-  @JsonIgnore
   private String expression;
+
+  public ProfileResultExpressions() {
+    // no-arg constructor required for kryo serialization in storm
+  }
 
   @JsonCreator
   public ProfileResultExpressions(String expression) {
     this.expression = expression;
   }
 
+  @JsonValue
   public String getExpression() {
     return expression;
   }

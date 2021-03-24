@@ -23,7 +23,7 @@ import org.apache.commons.cli.PosixParser;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.hbase.HBaseConfiguration;
 import org.apache.hadoop.hbase.HBaseTestingUtility;
-import org.apache.hadoop.hbase.client.HTable;
+import org.apache.hadoop.hbase.client.Table;
 import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.util.GenericOptionsParser;
@@ -36,7 +36,9 @@ import org.apache.metron.enrichment.lookup.LookupKey;
 import org.apache.metron.enrichment.lookup.accesstracker.BloomAccessTracker;
 import org.apache.metron.enrichment.lookup.accesstracker.PersistentAccessTracker;
 import org.apache.metron.test.utils.UnitTestHelper;
-import org.junit.*;
+import org.junit.jupiter.api.AfterAll;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -44,13 +46,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 
+import static org.junit.jupiter.api.Assertions.*;
+
 public class LeastRecentlyUsedPrunerIntegrationTest {
     /** The test util. */
     private static HBaseTestingUtility testUtil;
 
     /** The test table. */
-    private static HTable testTable;
-    private static HTable atTable;
+    private static Table testTable;
+    private static Table atTable;
     private static final String tableName = "malicious_domains";
     private static final String cf = "cf";
     private static final String atTableName = "access_trackers";
@@ -59,7 +63,7 @@ public class LeastRecentlyUsedPrunerIntegrationTest {
     private static final String timeFormat = "georgia";
     private static Configuration config = null;
 
-    @BeforeClass
+    @BeforeAll
     public static void setup() throws Exception {
         UnitTestHelper.setJavaLoggingLevel(Level.SEVERE);
         Map.Entry<HBaseTestingUtility, Configuration> kv = HBaseUtil.INSTANCE.create(true);
@@ -69,7 +73,7 @@ public class LeastRecentlyUsedPrunerIntegrationTest {
         atTable = testUtil.createTable(Bytes.toBytes(atTableName), Bytes.toBytes(atCF));
     }
 
-    @AfterClass
+    @AfterAll
     public static void teardown() throws Exception {
         HBaseUtil.INSTANCE.teardown(testUtil);
     }
@@ -90,12 +94,12 @@ public class LeastRecentlyUsedPrunerIntegrationTest {
         String[] otherArgs = new GenericOptionsParser(conf, argv).getRemainingArgs();
 
         CommandLine cli = LeastRecentlyUsedPruner.BulkLoadOptions.parse(new PosixParser(), otherArgs);
-        Assert.assertEquals(cf, LeastRecentlyUsedPruner.BulkLoadOptions.COLUMN_FAMILY.get(cli).trim());
-        Assert.assertEquals(tableName,LeastRecentlyUsedPruner.BulkLoadOptions.TABLE.get(cli).trim());
-        Assert.assertEquals(atTableName,LeastRecentlyUsedPruner.BulkLoadOptions.ACCESS_TABLE.get(cli).trim());
-        Assert.assertEquals(atCF,LeastRecentlyUsedPruner.BulkLoadOptions.ACCESS_COLUMN_FAMILY.get(cli).trim());
-        Assert.assertEquals(beginTime, LeastRecentlyUsedPruner.BulkLoadOptions.AS_OF_TIME.get(cli).trim());
-        Assert.assertEquals(timeFormat, LeastRecentlyUsedPruner.BulkLoadOptions.AS_OF_TIME_FORMAT.get(cli).trim());
+        assertEquals(cf, LeastRecentlyUsedPruner.BulkLoadOptions.COLUMN_FAMILY.get(cli).trim());
+        assertEquals(tableName,LeastRecentlyUsedPruner.BulkLoadOptions.TABLE.get(cli).trim());
+        assertEquals(atTableName,LeastRecentlyUsedPruner.BulkLoadOptions.ACCESS_TABLE.get(cli).trim());
+        assertEquals(atCF,LeastRecentlyUsedPruner.BulkLoadOptions.ACCESS_COLUMN_FAMILY.get(cli).trim());
+        assertEquals(beginTime, LeastRecentlyUsedPruner.BulkLoadOptions.AS_OF_TIME.get(cli).trim());
+        assertEquals(timeFormat, LeastRecentlyUsedPruner.BulkLoadOptions.AS_OF_TIME_FORMAT.get(cli).trim());
     }
 
     @Test
@@ -118,7 +122,7 @@ public class LeastRecentlyUsedPrunerIntegrationTest {
                                                   )
                                           )
                          );
-            Assert.assertTrue(lookup.exists((EnrichmentKey)k, new EnrichmentLookup.HBaseContext(testTable, cf), true));
+            assertTrue(lookup.exists((EnrichmentKey)k, new EnrichmentLookup.HBaseContext(testTable, cf), true));
         }
         pat.persist(true);
         for(LookupKey k : goodKeysOtherHalf) {
@@ -129,12 +133,12 @@ public class LeastRecentlyUsedPrunerIntegrationTest {
                                                                   )
                                          )
                          );
-            Assert.assertTrue(lookup.exists((EnrichmentKey)k, new EnrichmentLookup.HBaseContext(testTable, cf), true));
+            assertTrue(lookup.exists((EnrichmentKey)k, new EnrichmentLookup.HBaseContext(testTable, cf), true));
         }
         testUtil.flush();
-        Assert.assertFalse(lookup.getAccessTracker().hasSeen(goodKeysHalf.get(0)));
+        assertFalse(lookup.getAccessTracker().hasSeen(goodKeysHalf.get(0)));
         for(LookupKey k : goodKeysOtherHalf) {
-            Assert.assertTrue(lookup.getAccessTracker().hasSeen(k));
+            assertTrue(lookup.getAccessTracker().hasSeen(k));
         }
         pat.persist(true);
         {
@@ -147,16 +151,16 @@ public class LeastRecentlyUsedPrunerIntegrationTest {
             );
         }
         testUtil.flush();
-        Assert.assertFalse(lookup.getAccessTracker().hasSeen(badKey.get(0)));
+        assertFalse(lookup.getAccessTracker().hasSeen(badKey.get(0)));
 
 
         Job job = LeastRecentlyUsedPruner.createJob(config, tableName, cf, atTableName, atCF, ts);
-        Assert.assertTrue(job.waitForCompletion(true));
+        assertTrue(job.waitForCompletion(true));
         for(LookupKey k : goodKeys) {
-            Assert.assertTrue(lookup.exists((EnrichmentKey)k, new EnrichmentLookup.HBaseContext(testTable, cf), true));
+            assertTrue(lookup.exists((EnrichmentKey)k, new EnrichmentLookup.HBaseContext(testTable, cf), true));
         }
         for(LookupKey k : badKey) {
-            Assert.assertFalse(lookup.exists((EnrichmentKey)k, new EnrichmentLookup.HBaseContext(testTable, cf), true));
+            assertFalse(lookup.exists((EnrichmentKey)k, new EnrichmentLookup.HBaseContext(testTable, cf), true));
         }
 
     }

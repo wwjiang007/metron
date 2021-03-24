@@ -22,14 +22,13 @@ import nl.jqno.equalsverifier.Warning;
 import org.apache.commons.io.IOUtils;
 import org.apache.metron.TestConstants;
 import org.apache.metron.common.configuration.enrichment.SensorEnrichmentConfig;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
+
+import static org.junit.jupiter.api.Assertions.*;
 
 public class SensorEnrichmentConfigTest {
 
@@ -39,20 +38,21 @@ public class SensorEnrichmentConfigTest {
     Map<String, byte[]> testSensorConfigMap = ConfigurationsUtils.readSensorEnrichmentConfigsFromFile(TestConstants.ENRICHMENTS_CONFIGS_PATH);
     byte[] sensorConfigBytes = testSensorConfigMap.get("yaf");
     SensorEnrichmentConfig sensorEnrichmentConfig = SensorEnrichmentConfig.fromBytes(sensorConfigBytes);
-    Assert.assertNotNull(sensorEnrichmentConfig);
-    Assert.assertTrue(sensorEnrichmentConfig.toString() != null && sensorEnrichmentConfig.toString().length() > 0);
+    assertNotNull(sensorEnrichmentConfig);
+    assertTrue(sensorEnrichmentConfig.toString() != null && sensorEnrichmentConfig.toString().length() > 0);
   }
 
   @Test
   public void testSerDe() throws IOException {
     for(File enrichmentConfig : new File(new File(TestConstants.ENRICHMENTS_CONFIGS_PATH), "enrichments").listFiles()) {
       SensorEnrichmentConfig config = null;
-      try (BufferedReader br = new BufferedReader(new FileReader(enrichmentConfig))) {
+      try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(enrichmentConfig), StandardCharsets.UTF_8))) {
         String parserStr = IOUtils.toString(br);
-        config = SensorEnrichmentConfig.fromBytes(parserStr.getBytes());
+        config = SensorEnrichmentConfig.fromBytes(parserStr.getBytes(StandardCharsets.UTF_8));
       }
-      SensorEnrichmentConfig config2 = SensorEnrichmentConfig.fromBytes(config.toJSON().getBytes());
-      Assert.assertEquals(config2, config);
+      SensorEnrichmentConfig config2 = SensorEnrichmentConfig.fromBytes(config.toJSON().getBytes(
+          StandardCharsets.UTF_8));
+      assertEquals(config2, config);
     }
   }
 }

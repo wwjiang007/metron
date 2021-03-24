@@ -17,6 +17,18 @@
  */
 package org.apache.metron.rest.service.impl;
 
+import static java.util.stream.Collectors.toList;
+import static org.apache.metron.rest.MetronRestConstants.ENRICHMENT_TOPOLOGY_NAME;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.lang.invoke.MethodHandles;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import org.apache.commons.lang3.StringUtils;
 import org.apache.metron.common.utils.KafkaUtils;
 import org.apache.metron.rest.MetronRestConstants;
@@ -25,19 +37,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.env.Environment;
-
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.lang.invoke.MethodHandles;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static java.util.stream.Collectors.toList;
-import static org.apache.metron.rest.MetronRestConstants.ENRICHMENT_TOPOLOGY_NAME;
-import static org.apache.metron.rest.MetronRestConstants.INDEXING_TOPOLOGY_NAME;
 
 public class StormCLIWrapper {
 
@@ -70,14 +69,14 @@ public class StormCLIWrapper {
     return runCommand(getStopCommand(ENRICHMENT_TOPOLOGY_NAME, stopNow));
   }
 
-  public int startIndexingTopology() throws RestException {
+  public int startIndexingTopology(String scriptPath) throws RestException {
     kinit();
-    return runCommand(getIndexingStartCommand());
+    return runCommand(getIndexingStartCommand(scriptPath));
   }
 
-  public int stopIndexingTopology(boolean stopNow) throws RestException {
+  public int stopIndexingTopology(String name, boolean stopNow) throws RestException {
     kinit();
-    return runCommand(getStopCommand(INDEXING_TOPOLOGY_NAME, stopNow));
+    return runCommand(getStopCommand(name, stopNow));
   }
 
   protected int runCommand(String[] command) throws RestException {
@@ -100,13 +99,13 @@ public class StormCLIWrapper {
     return exitValue;
   }
 
-  protected String[] getParserStartCommand(String name) {
+  protected String[] getParserStartCommand(String names) {
     List<String> command = new ArrayList<>();
     command.add( environment.getProperty(MetronRestConstants.PARSER_SCRIPT_PATH_SPRING_PROPERTY));
 
     // sensor type
     command.add( "-s");
-    command.add( name);
+    command.add( names);
 
     // zookeeper
     command.add( "-z");
@@ -137,9 +136,9 @@ public class StormCLIWrapper {
     return command;
   }
 
-  protected String[] getIndexingStartCommand() {
+  protected String[] getIndexingStartCommand(String scriptPath) {
     String[] command = new String[1];
-    command[0] = environment.getProperty(MetronRestConstants.INDEXING_SCRIPT_PATH_SPRING_PROPERTY);
+    command[0] = environment.getProperty(scriptPath);
     return command;
   }
 
@@ -166,7 +165,8 @@ public class StormCLIWrapper {
     Map<String, String> status = new HashMap<>();
     status.put("parserScriptPath", environment.getProperty(MetronRestConstants.PARSER_SCRIPT_PATH_SPRING_PROPERTY));
     status.put("enrichmentScriptPath", environment.getProperty(MetronRestConstants.ENRICHMENT_SCRIPT_PATH_SPRING_PROPERTY));
-    status.put("indexingScriptPath", environment.getProperty(MetronRestConstants.INDEXING_SCRIPT_PATH_SPRING_PROPERTY));
+    status.put("randomAccessIndexingScriptPath", environment.getProperty(MetronRestConstants.RANDOM_ACCESS_INDEXING_SCRIPT_PATH_SPRING_PROPERTY));
+    status.put("batchIndexingScriptPath", environment.getProperty(MetronRestConstants.BATCH_INDEXING_SCRIPT_PATH_SPRING_PROPERTY));
     status.put("stormClientVersionInstalled", stormClientVersionInstalled());
     return status;
   }
@@ -181,7 +181,8 @@ public class StormCLIWrapper {
     } catch (IOException e) {
       throw new RestException(e);
     }
-    BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream()));
+    BufferedReader reader = new BufferedReader(new InputStreamReader(p.getInputStream(),
+        StandardCharsets.UTF_8));
     List<String> lines = reader.lines().collect(toList());
     lines.forEach(System.out::println);
     if (lines.size() > 1) {

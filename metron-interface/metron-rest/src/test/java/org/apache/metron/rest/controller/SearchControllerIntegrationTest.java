@@ -17,6 +17,30 @@
  */
 package org.apache.metron.rest.controller;
 
+import com.google.common.collect.ImmutableMap;
+import org.adrianwalker.multilinestring.Multiline;
+import org.apache.metron.indexing.dao.InMemoryDao;
+import org.apache.metron.indexing.dao.SearchIntegrationTest;
+import org.apache.metron.indexing.dao.search.FieldType;
+import org.apache.metron.rest.service.AlertsUIService;
+import org.apache.metron.rest.service.SensorIndexingConfigService;
+import org.json.simple.parser.ParseException;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.MediaType;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.web.context.WebApplicationContext;
+
+import java.util.HashMap;
+import java.util.Map;
+
 import static org.apache.metron.integration.utils.TestUtils.assertEventually;
 import static org.apache.metron.rest.MetronRestConstants.TEST_PROFILE;
 import static org.hamcrest.Matchers.hasSize;
@@ -24,33 +48,9 @@ import static org.springframework.security.test.web.servlet.request.SecurityMock
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
-import com.google.common.collect.ImmutableMap;
-import java.util.HashMap;
-import java.util.Map;
-import org.adrianwalker.multilinestring.Multiline;
-import org.apache.metron.indexing.dao.InMemoryDao;
-import org.apache.metron.indexing.dao.SearchIntegrationTest;
-import org.apache.metron.indexing.dao.search.FieldType;
-import org.apache.metron.rest.service.SensorIndexingConfigService;
-import org.json.simple.parser.ParseException;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.http.MediaType;
-import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.junit4.SpringRunner;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-import org.springframework.web.context.WebApplicationContext;
-
-@RunWith(SpringRunner.class)
+@ExtendWith(SpringExtension.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles(TEST_PROFILE)
 public class SearchControllerIntegrationTest extends DaoControllerTest {
@@ -66,14 +66,26 @@ public class SearchControllerIntegrationTest extends DaoControllerTest {
    *     "field": "timestamp",
    *     "sortOrder": "desc"
    *   }
-   * ]
+   * ],
+   * "facetFields": []
    * }
    */
   @Multiline
   public static String defaultQuery;
 
+  /**
+   * {
+   *   "facetFields": ["ip_src_port"]
+   * }
+   */
+  @Multiline
+  public static String alertProfile;
+
   @Autowired
   private SensorIndexingConfigService sensorIndexingConfigService;
+
+  @Autowired
+  private AlertsUIService alertsUIService;
 
   @Autowired
   private WebApplicationContext wac;
@@ -84,7 +96,7 @@ public class SearchControllerIntegrationTest extends DaoControllerTest {
   private String user = "user";
   private String password = "password";
 
-  @Before
+  @BeforeEach
   public void setup() throws Exception {
     this.mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).apply(springSecurity()).build();
     ImmutableMap<String, String> testData = ImmutableMap.of(
@@ -93,9 +105,10 @@ public class SearchControllerIntegrationTest extends DaoControllerTest {
     );
     loadTestData(testData);
     loadColumnTypes();
+    loadFacetCounts();
   }
 
-  @After
+  @AfterEach
   public void cleanup() throws Exception {
     InMemoryDao.clear();
   }
@@ -107,7 +120,7 @@ public class SearchControllerIntegrationTest extends DaoControllerTest {
   }
 
   @Test
-  public void testDefaultQuery() throws Exception {
+  public void testSearchWithDefaults() throws Exception {
     sensorIndexingConfigService.save("bro", new HashMap<String, Object>() {{
       put("index", "bro");
     }});
@@ -126,9 +139,39 @@ public class SearchControllerIntegrationTest extends DaoControllerTest {
             .andExpect(jsonPath("$.results[3].source.timestamp").value(2))
             .andExpect(jsonPath("$.results[4].source.source:type").value("bro"))
             .andExpect(jsonPath("$.results[4].source.timestamp").value(1))
+            .andExpect(jsonPath("$.facetCounts.*", hasSize(2)))
+            .andExpect(jsonPath("$.facetCounts.source:type.*", hasSize(1)))
+            .andExpect(jsonPath("$.facetCounts.source:type['bro']").value(5))
+            .andExpect(jsonPath("$.facetCounts.ip_src_addr.*", hasSize(2)))
+            .andExpect(jsonPath("$.facetCounts.ip_src_addr['192.168.1.1']").value(3))
+            .andExpect(jsonPath("$.facetCounts.ip_src_addr['192.168.1.2']").value(1))
     );
 
     sensorIndexingConfigService.delete("bro");
+  }
+
+  @Test
+  public void testSearchWithAlertProfileFacetFields() throws Exception {
+    assertEventually(() -> this.mockMvc.perform(
+        post("/api/v1/alerts/ui/settings").with(httpBasic(user, password)).with(csrf())
+            .contentType(MediaType.parseMediaType("application/json;charset=UTF-8"))
+            .content(alertProfile))
+        .andExpect(status().isOk())
+    );
+
+    assertEventually(() -> this.mockMvc.perform(
+        post(searchUrl + "/search").with(httpBasic(user, password)).with(csrf())
+            .contentType(MediaType.parseMediaType("application/json;charset=UTF-8"))
+            .content(defaultQuery))
+        .andExpect(status().isOk())
+        .andExpect(content().contentType(MediaType.parseMediaType("application/json;charset=UTF-8")))
+        .andExpect(jsonPath("$.facetCounts.*", hasSize(1)))
+        .andExpect(jsonPath("$.facetCounts.ip_src_port.*", hasSize(2)))
+        .andExpect(jsonPath("$.facetCounts.ip_src_port['8010']").value(1))
+        .andExpect(jsonPath("$.facetCounts.ip_src_port['8009']").value(2))
+    );
+
+    alertsUIService.deleteAlertsUIUserSettings(user);
   }
 
   @Test
@@ -314,4 +357,22 @@ public class SearchControllerIntegrationTest extends DaoControllerTest {
     columnTypes.put("snort", snortTypes);
     InMemoryDao.setColumnMetadata(columnTypes);
   }
+
+  private void loadFacetCounts() {
+    Map<String, Map<String, Long>> facetCounts = new HashMap<>();
+    Map<String, Long> ipSrcAddrCounts = new HashMap<>();
+    ipSrcAddrCounts.put("192.168.1.1", 3L);
+    ipSrcAddrCounts.put("192.168.1.2", 1L);
+    Map<String, Long> ipSrcPortCounts = new HashMap<>();
+    ipSrcPortCounts.put("8010", 1L);
+    ipSrcPortCounts.put("8009", 2L);
+    Map<String, Long> sourceTypeCounts = new HashMap<>();
+    sourceTypeCounts.put("bro", 5L);
+    facetCounts.put("ip_src_addr", ipSrcAddrCounts);
+    facetCounts.put("ip_src_port", ipSrcPortCounts);
+    facetCounts.put("source:type", sourceTypeCounts);
+
+    InMemoryDao.setFacetCounts(facetCounts);
+  }
+
 }

@@ -12,6 +12,17 @@
   the specific language governing permissions and limitations under the License.
   -->
 <div #inputText class="input-group">
-  <input class="form-control" [(ngModel)]="dateStr" (click)="toggleDatePicker($event)">
-  <span class="input-group-addon calendar"></span>
+  <input
+    class="form-control"
+    [(ngModel)]="dateStr"
+    (focus)="onFocus()"
+    (blur)="onBlur($event)"
+    (keyup)="onKeyup($event)"
+  >
+  <div class="input-group-append">
+    <span
+      #calendarIcon
+      class="input-group-text calendar"
+    ></span>
+  </div>
 </div>

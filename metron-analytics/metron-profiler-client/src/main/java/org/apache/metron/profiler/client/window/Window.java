@@ -19,7 +19,6 @@
  */
 package org.apache.metron.profiler.client.window;
 
-import com.google.common.collect.Iterables;
 import org.apache.commons.lang3.Range;
 
 import java.util.ArrayList;
@@ -27,7 +26,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.stream.Stream;
+import java.util.stream.Collectors;
 
 /**
  * A window is intended to compute the set of window intervals across time based on a reference time.
@@ -72,11 +71,14 @@ public class Window {
    * Get the set of inclusion predicates.  If any of these are true as applied to the window interval start time,
    * then a field is included unless it's explicitly excluded.
    * @param now
-   * @return Iterable<Predicate<Long>> returns a set of inclusion predicates. If any of these are true as
+   * @return {@code Iterable<Predicate<Long>>} returns a set of inclusion predicates. If any of these are true as
    * applied to the window interval start time, then a field is included unless it's explicitly excluded
    */
   public Iterable<Predicate<Long>> getIncludes(long now) {
-    return Iterables.transform(includes, f -> f.apply(now));
+    return includes
+            .stream()
+            .map(include -> include.apply(now))
+            .collect(Collectors.toList());
   }
 
   void setIncludes(List<Function<Long, Predicate<Long>>> includes) {
@@ -87,12 +89,15 @@ public class Window {
    * Get the set of exclusion predicates.  If any of these exclusion predicates are true as applied to the window
    * interval start time, then the interval is excluded.  NOTE: Exclusions trump inclusions.
    * @param now
-   * @return Iterable<Predicate<Long>> returns the set of exclusion predicates. If any of these exclusion
+   * @return {@code Iterable<Predicate<Long>>} returns the set of exclusion predicates. If any of these exclusion
    * predicates are true as applied to the window interval start time, then the interval is excluded.
    * Exclusions trump inclusions.
    */
   public Iterable<Predicate<Long>> getExcludes(long now){
-    return Iterables.transform(excludes, f -> f.apply(now));
+    return excludes
+            .stream()
+            .map(exclude -> exclude.apply(now))
+            .collect(Collectors.toList());
   }
 
   void setExcludes(List<Function<Long, Predicate<Long>>> excludes) {

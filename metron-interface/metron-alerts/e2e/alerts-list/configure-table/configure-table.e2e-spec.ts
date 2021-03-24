@@ -21,21 +21,22 @@ import {customMatchers} from '../../matchers/custom-matchers';
 import {LoginPage} from '../../login/login.po';
 import {loadTestData, deleteTestData} from '../../utils/e2e_util';
 
-describe('metron-alerts configure table', function() {
+describe('Test spec for table column configuration', function() {
   let page: MetronAlertsPage;
   let loginPage: LoginPage;
-  let colNamesColumnConfig = [ 'score', 'id', 'timestamp', 'source:type', 'ip_src_addr', 'enrichments:geo:ip_dst_addr:country',
+  let colNamesColumnConfig = [ 'score', 'guid', 'timestamp', 'source:type', 'ip_src_addr', 'enrichments:geo:ip_dst_addr:country',
     'ip_dst_addr', 'host', 'alert_status' ];
 
-  beforeAll(() => {
-    loadTestData();
+  beforeAll(async function() : Promise<any> {
     loginPage = new LoginPage();
-    loginPage.login();
+
+    await loadTestData();
+    await loginPage.login();
   });
 
-  afterAll(() => {
-    loginPage.logout();
-    deleteTestData();
+  afterAll(async function() : Promise<any> {
+    await loginPage.logout();
+    await deleteTestData();
   });
 
   beforeEach(() => {
@@ -43,40 +44,40 @@ describe('metron-alerts configure table', function() {
     jasmine.addMatchers(customMatchers);
   });
 
-  it('should select columns from table configuration', () => {
-    let newColNamesColumnConfig = [ 'score', 'timestamp', 'source:type', 'ip_src_addr', 'enrichments:geo:ip_dst_addr:country',
-      'ip_dst_addr', 'host', 'alert_status', 'guid' ];
+  it('should select columns from table configuration', async function() : Promise<any> {
+    await page.clearLocalStorage();
+    await page.navigateTo();
+    await page.clickConfigureTable();
+    expect(await page.getSelectedColumnNames()).toEqualBcoz(colNamesColumnConfig, 'for default selected column names');
 
-    page.clearLocalStorage();
-    page.navigateTo();
+    // remove the 'guid' column and add the 'id' column
+    await page.toggleSelectCol('guid');
+    await page.toggleSelectCol('id');
 
-    page.clickConfigureTable();
-    expect(page.getSelectedColumnNames()).toEqualBcoz(colNamesColumnConfig, 'for default selected column names');
-    page.toggleSelectCol('id');
-    page.toggleSelectCol('guid', 'method');
-    expect(page.getSelectedColumnNames()).toEqualBcoz(newColNamesColumnConfig, 'for guid added to selected column names');
-    page.saveConfigureColumns();
+    let expectedColumns = [ 'score', 'timestamp', 'source:type', 'ip_src_addr', 'enrichments:geo:ip_dst_addr:country',
+      'ip_dst_addr', 'host', 'alert_status', 'id' ];
+    expect(await page.getSelectedColumnNames()).toEqualBcoz(expectedColumns, 'expect "id" field added and "guid" field removed from visible columns');
+    await page.saveConfigureColumns();
   });
 
-  it('should rename columns from table configuration', () => {
-    page.clearLocalStorage();
-    page.navigateTo();
+  it('should rename columns from table configuration', async function() : Promise<any> {
+    await page.clearLocalStorage();
+    await page.navigateTo();
 
-    page.clickConfigureTable();
-    page.renameColumn('enrichments:geo:ip_dst_addr:country', 'Country');
-    page.saveConfigureColumns();
+    await page.clickConfigureTable();
+    await page.renameColumn('enrichments:geo:ip_dst_addr:country', 'Country');
+    await page.saveConfigureColumns();
 
-    page.clickTableText('FR');
-    expect(page.getSearchText()).toEqual('Country:FR');
-    expect(page.getChangesAlertTableTitle('Alerts (169)')).toEqual('Alerts (25)');
-    page.clickClearSearch();
+    expect(await page.clickTableTextAndGetSearchText('FR', 'Country:FR')).toEqual('Country:FR');
+    expect(await page.getChangesAlertTableTitle('Alerts (169)')).toEqual('Alerts (25)');
+    await page.clickClearSearch();
 
-    expect(page.getChangesAlertTableTitle('Alerts (25)')).toEqual('Alerts (169)');
-    page.setSearchText('Country:FR');
-    expect(page.getChangesAlertTableTitle('Alerts (169)')).toEqual('Alerts (25)');
-    page.clickClearSearch();
+    expect(await page.getChangesAlertTableTitle('Alerts (25)')).toEqual('Alerts (169)');
+    await page.setSearchText('Country:FR');
+    expect(await page.getChangesAlertTableTitle('Alerts (169)')).toEqual('Alerts (25)');
+    await page.clickClearSearch();
 
-    expect(page.getTableColumnNames()).toContain('Country', 'for renamed column names for alert list table');
+    expect(await page.getTableColumnNames()).toContain('Country', 'for renamed column names for alert list table');
 
   });
 

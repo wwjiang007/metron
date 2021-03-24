@@ -30,6 +30,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Properties;
 import java.util.logging.Level;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
 import kafka.api.FetchRequest;
 import kafka.api.FetchRequestBuilder;
 import kafka.common.TopicExistsException;
@@ -48,6 +51,7 @@ import kafka.utils.Time;
 import kafka.utils.ZKStringSerializer$;
 import kafka.utils.ZkUtils;
 import org.I0Itec.zkclient.ZkClient;
+import org.apache.hadoop.hbase.util.Bytes;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.metron.integration.InMemoryComponent;
@@ -61,6 +65,10 @@ import org.slf4j.LoggerFactory;
 public class KafkaComponent implements InMemoryComponent {
 
   protected static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+  public static final long KAFKA_PROPAGATE_TIMEOUT_MS = 10000l;
+  public static final int ZK_SESSION_TIMEOUT_MS = 30000;
+  public static final int ZK_CONNECTION_TIMEOUT_MS = 30000;
+  public static final int KAFKA_ZOOKEEPER_TIMEOUT_MS = 1000000;
 
   public static class Topic {
     public int numPartitions;
@@ -155,11 +163,11 @@ public class KafkaComponent implements InMemoryComponent {
     // setup Zookeeper
     zookeeperConnectString = topologyProperties.getProperty(ZKServerComponent.ZOOKEEPER_PROPERTY);
 
-    zkClient = new ZkClient(zookeeperConnectString, 30000, 30000, ZKStringSerializer$.MODULE$);
+    zkClient = new ZkClient(zookeeperConnectString, ZK_SESSION_TIMEOUT_MS, ZK_CONNECTION_TIMEOUT_MS, ZKStringSerializer$.MODULE$);
 
     // setup Broker
     Properties props = TestUtilsWrapper.createBrokerConfig(0, zookeeperConnectString, brokerPort);
-    props.setProperty("zookeeper.connection.timeout.ms","1000000");
+    props.setProperty("zookeeper.connection.timeout.ms", Integer.toString(KAFKA_ZOOKEEPER_TIMEOUT_MS));
     KafkaConfig config = new KafkaConfig(props);
     Time mock = new MockTime();
     kafkaServer = TestUtils.createServer(config, mock);
@@ -171,7 +179,7 @@ public class KafkaComponent implements InMemoryComponent {
 
     for(Topic topic : getTopics()) {
       try {
-        createTopic(topic.name, topic.numPartitions, true);
+        createTopic(topic.name, topic.numPartitions, KAFKA_PROPAGATE_TIMEOUT_MS);
       } catch (InterruptedException e) {
         throw new RuntimeException("Unable to create topic", e);
       }
@@ -284,26 +292,26 @@ public class KafkaComponent implements InMemoryComponent {
   }
 
   public void createTopic(String name) throws InterruptedException {
-    createTopic(name, 1, true);
+    createTopic(name, 1, KAFKA_PROPAGATE_TIMEOUT_MS);
   }
 
-  public void waitUntilMetadataIsPropagated(String topic, int numPartitions) {
+  public void waitUntilMetadataIsPropagated(String topic, int numPartitions, long timeOutMS) {
     List<KafkaServer> servers = new ArrayList<>();
     servers.add(kafkaServer);
     for(int part = 0;part < numPartitions;++part) {
-      TestUtils.waitUntilMetadataIsPropagated(scala.collection.JavaConversions.asScalaBuffer(servers), topic, part, 5000);
+      TestUtils.waitUntilMetadataIsPropagated(scala.collection.JavaConversions.asScalaBuffer(servers), topic, part, timeOutMS);
     }
   }
 
-  public void createTopic(String name, int numPartitions, boolean waitUntilMetadataIsPropagated) throws InterruptedException {
+  public void createTopic(String name, int numPartitions, long waitThisLongForMetadataToPropagate) throws InterruptedException {
     ZkUtils zkUtils = null;
     Level oldLevel = UnitTestHelper.getJavaLoggingLevel();
     try {
       UnitTestHelper.setJavaLoggingLevel(Level.OFF);
       zkUtils = ZkUtils.apply(zookeeperConnectString, 30000, 30000, false);
       AdminUtilsWrapper.createTopic(zkUtils, name, numPartitions, 1, new Properties());
-      if (waitUntilMetadataIsPropagated) {
-        waitUntilMetadataIsPropagated(name, numPartitions);
+      if (waitThisLongForMetadataToPropagate > 0) {
+        waitUntilMetadataIsPropagated(name, numPartitions, waitThisLongForMetadataToPropagate);
       }
     }catch(TopicExistsException tee) {
     }finally {
@@ -314,11 +322,44 @@ public class KafkaComponent implements InMemoryComponent {
     }
   }
 
+  /**
+   * Write a collection of messages to a Kafka topic.
+   *
+   * @param topic The name of the Kafka topic.
+   * @param messages The collection of messages to write.
+   */
   public void writeMessages(String topic, Collection<byte[]> messages) {
     try(KafkaProducer<String, byte[]> kafkaProducer = createProducer()) {
       for (byte[] message : messages) {
-        kafkaProducer.send(new ProducerRecord<String, byte[]>(topic, message));
+        kafkaProducer.send(new ProducerRecord<>(topic, message));
       }
     }
+  }
+
+  /**
+   * Write messages to a Kafka topic.
+   *
+   * @param topic The name of the Kafka topic.
+   * @param messages The messages to write.
+   */
+  public void writeMessages(String topic, String ...messages) {
+
+    // convert each message to raw bytes
+    List<byte[]> messagesAsBytes = Stream.of(messages)
+            .map(Bytes::toBytes)
+            .collect(Collectors.toList());
+
+    writeMessages(topic, messagesAsBytes);
+  }
+
+  /**
+   * Write messages to a Kafka topic.
+   *
+   * @param topic The name of the Kafka topic.
+   * @param messages The messages to write.
+   */
+  public void writeMessages(String topic, List<String> messages) {
+
+    writeMessages(topic, messages.toArray(new String[] {}));
   }
 }

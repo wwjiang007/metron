@@ -22,15 +22,15 @@
 	<parent>
 		<groupId>org.apache.metron</groupId>
 		<artifactId>Metron</artifactId>
-		<version>0.4.3</version>
+		<version>0.7.2</version>
 	</parent>
 	<description>Stream analytics for Metron</description>
 	<url>https://metron.apache.org/</url>
 	<scm>
-		<connection>scm:git:https://git-wip-us.apache.org/repos/asf/metron.git</connection>
-		<developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/metron.git</developerConnection>
+		<connection>scm:git:https://gitbox.apache.org/repos/asf/metron.git</connection>
+		<developerConnection>scm:git:https://gitbox.apache.org/repos/asf/metron.git</developerConnection>
 		<tag>HEAD</tag>
-		<url>https://git-wip-us.apache.org/repos/asf/metron</url>
+		<url>https://gitbox.apache.org/repos/asf/metron</url>
 	</scm>
 
 	<licenses>
@@ -45,13 +45,12 @@
 		<module>metron-common</module>
 		<module>metron-enrichment</module>
 		<module>metron-solr</module>
-		<module>metron-parsers</module>
+ 		<module>metron-job</module>
 		<module>metron-pcap-backend</module>
 		<module>metron-data-management</module>
 		<module>metron-pcap</module>
 		<module>metron-integration-test</module>
 		<module>metron-test-utilities</module>
-		<module>metron-api</module>
 		<module>metron-indexing</module>
 		<module>metron-management</module>
 		<module>metron-writer</module>
@@ -61,7 +60,10 @@
 		<module>metron-storm-kafka</module>
 		<module>metron-storm-kafka-override</module>
 		<module>metron-zookeeper</module>
-	</modules>
+    <module>metron-parsing</module>
+    <module>metron-hbase-server</module>
+    <module>metron-common-streaming</module>
+  </modules>
 	<dependencies>
 		<dependency>
 			<groupId>org.slf4j</groupId>
@@ -74,21 +76,15 @@
 			<version>${global_slf4j_version}</version>
 		</dependency>
 		<dependency>
-			<groupId>junit</groupId>
-			<artifactId>junit</artifactId>
-			<version>${global_junit_version}</version>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-api</artifactId>
+			<version>${global_junit_jupiter_version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
-			<groupId>org.powermock</groupId>
-			<artifactId>powermock-module-junit4</artifactId>
-			<version>1.6.6</version>
-			<scope>test</scope>
-		</dependency>
-		<dependency>
-			<groupId>org.powermock</groupId>
-			<artifactId>powermock-api-mockito</artifactId>
-			<version>1.6.6</version>
+			<groupId>org.junit.jupiter</groupId>
+			<artifactId>junit-jupiter-engine</artifactId>
+			<version>${global_junit_jupiter_version}</version>
 			<scope>test</scope>
 		</dependency>
 		<dependency>

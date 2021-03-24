@@ -19,9 +19,13 @@ package org.apache.metron.rest;
 
 import org.apache.metron.rest.util.ParserIndex;
 import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.gson.GsonAutoConfiguration;
+import org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration;
 
 @SpringBootApplication
+@EnableAutoConfiguration(exclude = { GsonAutoConfiguration.class, KafkaAutoConfiguration.class })
 public class MetronRestApplication {
 
   public static void main(String[] args) {

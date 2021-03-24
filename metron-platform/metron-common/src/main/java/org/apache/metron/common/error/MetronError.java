@@ -17,32 +17,39 @@
  */
 package org.apache.metron.common.error;
 
-import org.apache.commons.lang.exception.ExceptionUtils;
-import org.apache.hadoop.hbase.util.Bytes;
-import org.apache.metron.common.Constants;
-import org.apache.metron.common.Constants.ErrorType;
-import org.apache.metron.common.utils.HashUtils;
-import org.json.simple.JSONObject;
-
-import java.net.InetAddress;
-import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Optional;
-import java.util.Set;
-
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.apache.metron.common.Constants.ERROR_TYPE;
 import static org.apache.metron.common.Constants.ErrorFields;
+
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+import java.nio.charset.Charset;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+
+import org.apache.commons.lang.exception.ExceptionUtils;
+import org.apache.metron.common.Constants;
+import org.apache.metron.common.Constants.ErrorType;
+import org.apache.metron.common.utils.HashUtils;
+import org.json.simple.JSONArray;
+import org.json.simple.JSONObject;
 
 public class MetronError {
 
   private String message;
   private Throwable throwable;
-  private String sensorType = ERROR_TYPE;
+  private Set<String> sensorTypes = Collections.singleton(ERROR_TYPE);
   private ErrorType errorType = ErrorType.DEFAULT_ERROR;
   private Set<String> errorFields;
   private List<Object> rawMessages;
+  private Map<String, Object> metadata = new HashMap<>();
 
   public MetronError withMessage(String message) {
     this.message = message;
@@ -54,8 +61,8 @@ public class MetronError {
     return this;
   }
 
-  public MetronError withSensorType(String sensorType) {
-    this.sensorType = sensorType;
+  public MetronError withSensorType(Set<String> sensorTypes) {
+    this.sensorTypes = sensorTypes;
     return this;
   }
 
@@ -69,7 +76,17 @@ public class MetronError {
     return this;
   }
 
+  public MetronError withMetadata(Map<String, Object> metadata) {
+    this.metadata.putAll(metadata);
+    return this;
+  }
 
+  /**
+   * Adds a rawMessage to the error. Calls can be chained, as the method returns this.
+   *
+   * @param rawMessage The raw message to add
+   * @return this, to allow for call chaining
+   */
   public MetronError addRawMessage(Object rawMessage) {
     if (rawMessage != null) {
       if (this.rawMessages == null) {
@@ -89,21 +106,39 @@ public class MetronError {
     return throwable != null ? Optional.of(throwable) : Optional.empty();
   }
 
+  public List<Object> getRawMessages() {
+    return rawMessages;
+  }
+
+  /**
+   * Serializes the MetronError into a JSON object.
+   *
+   * @return The resulting json object
+   */
   @SuppressWarnings({"unchecked"})
   public JSONObject getJSONObject() {
     JSONObject errorMessage = new JSONObject();
-    errorMessage.put(Constants.SENSOR_TYPE, "error");
-    errorMessage.put(ErrorFields.FAILED_SENSOR_TYPE.getName(), sensorType);
+    errorMessage.put(Constants.GUID, UUID.randomUUID().toString());
+    errorMessage.put(Constants.SENSOR_TYPE, Constants.ERROR_TYPE);
     errorMessage.put(ErrorFields.ERROR_TYPE.getName(), errorType.getType());
-
+    addFailedSensorType(errorMessage);
     addMessageString(errorMessage);
 		addStacktrace(errorMessage);
     addTimestamp(errorMessage);
     addHostname(errorMessage);
     addRawMessages(errorMessage);
     addErrorHash(errorMessage);
+    addMetadata(errorMessage);
 
     return errorMessage;
+  }
+
+  private void addFailedSensorType(JSONObject errorMessage) {
+    if (sensorTypes.size() == 1) {
+      errorMessage.put(ErrorFields.FAILED_SENSOR_TYPE.getName(), sensorTypes.iterator().next());
+    } else {
+      errorMessage.put(ErrorFields.FAILED_SENSOR_TYPE.getName(), new JSONArray().addAll(sensorTypes));
+    }
   }
 
   @SuppressWarnings({"unchecked"})
@@ -149,7 +184,7 @@ public class MetronError {
         // It's unclear if we need a rawMessageBytes field so commenting out for now
         //String rawMessageBytesField = rawMessages.size() == 1 ? ErrorFields.RAW_MESSAGE_BYTES.getName() : ErrorFields.RAW_MESSAGE_BYTES.getName() + "_" + i;
         if(rawMessage instanceof byte[]) {
-          errorMessage.put(rawMessageField, Bytes.toString((byte[])rawMessage));
+          errorMessage.put(rawMessageField, new String((byte[])rawMessage, UTF_8));
           //errorMessage.put(rawMessageBytesField, com.google.common.primitives.Bytes.asList((byte[])rawMessage));
         } else if (rawMessage instanceof JSONObject) {
           JSONObject rawMessageJSON = (JSONObject) rawMessage;
@@ -184,36 +219,31 @@ public class MetronError {
     }
   }
 
+  private void addMetadata(JSONObject errorMessage) {
+    if(metadata != null && metadata.keySet().size() > 0) {
+      // add each metadata element directly to the message. each metadata key already has
+      // a standard prefix, no need to add another prefix to avoid collisions. this mimics
+      // the behavior of merging metadata.
+      errorMessage.putAll(metadata);
+    }
+  }
+
   @Override
   public boolean equals(Object o) {
     if (this == o) return true;
-    if (o == null || getClass() != o.getClass()) return false;
-
+    if (!(o instanceof MetronError)) return false;
     MetronError that = (MetronError) o;
-
-    if (message != null ? !message.equals(that.message) : that.message != null)
-      return false;
-    if (throwable != null ? !throwable.equals(that.throwable) : that.throwable != null)
-      return false;
-    if (sensorType != null ? !sensorType.equals(that.sensorType) : that.sensorType != null)
-      return false;
-    if (errorType != null ? !errorType.equals(that.errorType) : that.errorType != null)
-      return false;
-    if (errorFields != null ? !errorFields.equals(that.errorFields) : that.errorFields != null)
-      return false;
-    return rawMessages != null ? rawMessages.equals(that.rawMessages) : that.rawMessages == null;
-
+    return Objects.equals(message, that.message) &&
+            Objects.equals(throwable, that.throwable) &&
+            Objects.equals(sensorTypes, that.sensorTypes) &&
+            errorType == that.errorType &&
+            Objects.equals(errorFields, that.errorFields) &&
+            Objects.equals(rawMessages, that.rawMessages) &&
+            Objects.equals(metadata, that.metadata);
   }
 
   @Override
   public int hashCode() {
-    int result = message != null ? message.hashCode() : 0;
-    result = 31 * result + (throwable != null ? throwable.hashCode() : 0);
-    result = 31 * result + (sensorType != null ? sensorType.hashCode() : 0);
-    result = 31 * result + (errorType != null ? errorType.hashCode() : 0);
-    result = 31 * result + (errorFields != null ? errorFields.hashCode() : 0);
-    result = 31 * result + (rawMessages != null ? rawMessages.hashCode() : 0);
-    return result;
+    return Objects.hash(message, throwable, sensorTypes, errorType, errorFields, rawMessages, metadata);
   }
-
 }

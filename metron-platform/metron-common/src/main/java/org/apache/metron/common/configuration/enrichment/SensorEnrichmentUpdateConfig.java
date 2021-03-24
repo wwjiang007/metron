@@ -20,6 +20,7 @@ package org.apache.metron.common.configuration.enrichment;
 
 import com.google.common.base.Joiner;
 import java.lang.invoke.MethodHandles;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -28,13 +29,13 @@ import java.util.Map;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.metron.common.Constants;
 import org.apache.metron.common.configuration.ConfigurationsUtils;
+import org.apache.metron.common.utils.LazyLogger;
+import org.apache.metron.common.utils.LazyLoggerFactory;
 import org.apache.zookeeper.KeeperException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 public class SensorEnrichmentUpdateConfig {
 
-  protected static final Logger LOG = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+  protected static final LazyLogger LOG = LazyLoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
 
   public static class FieldList {
     Type type;
@@ -75,6 +76,12 @@ public class SensorEnrichmentUpdateConfig {
     this.sensorToFieldList = sensorToFieldList;
   }
 
+  /**
+   * Updates the sensor configs using a {@link ZKSourceConfigHandler} to read configs from
+   * ZooKeeper and the internal {@code sensorToFieldList}.
+   *
+   * @throws Exception If there's an issue reading from ZK or updating configs
+   */
   public void updateSensorConfigs( ) throws Exception {
     CuratorFramework client = ConfigurationsUtils.getClient(getZkQuorum());
     try {
@@ -108,10 +115,19 @@ public class SensorEnrichmentUpdateConfig {
 
     @Override
     public void persistConfig(String sensor, SensorEnrichmentConfig config) throws Exception {
-      ConfigurationsUtils.writeSensorEnrichmentConfigToZookeeper(sensor, config.toJSON().getBytes(), client);
+      ConfigurationsUtils.writeSensorEnrichmentConfigToZookeeper(sensor, config.toJSON().getBytes(
+          StandardCharsets.UTF_8), client);
     }
   }
 
+  /**
+   * Updates the sensor configs with the provided @{link SourceConfigHandler} and the provided
+   * {@code sensorToFieldList}.
+   *
+   * @param scHandler Handles retrieval of configs
+   * @param sensorToFieldList Map from sensor to @{link FieldList}
+   * @throws Exception If there's an issue updating config
+   */
   public static void updateSensorConfigs( SourceConfigHandler scHandler
                                         , Map<String, FieldList> sensorToFieldList
                                         ) throws Exception
@@ -171,7 +187,7 @@ public class SensorEnrichmentUpdateConfig {
         }
         //adding only the ones that we don't already have to the field list
         if (additionalFields.size() > 0) {
-          LOG.debug("Adding additional fields: {}", Joiner.on(',').join(additionalFields));
+          LOG.debug("Adding additional fields: {}", () -> Joiner.on(',').join(additionalFields));
           fieldList.addAll(additionalFields);
           sourceConfigsChanged.put(kv.getKey(), config);
         }

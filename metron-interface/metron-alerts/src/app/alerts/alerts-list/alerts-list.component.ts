@@ -15,40 +15,46 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {Component, OnInit, ViewChild, ElementRef, OnDestroy} from '@angular/core';
+import {forkJoin, noop, fromEvent} from 'rxjs';
+import {Component, OnInit, ViewChild, ElementRef, OnDestroy, ChangeDetectorRef, AfterViewInit} from '@angular/core';
 import {Router, NavigationStart} from '@angular/router';
-import {Observable, Subscription} from 'rxjs/Rx';
+import {Subscription} from 'rxjs';
 
 import {Alert} from '../../model/alert';
 import {SearchService} from '../../service/search.service';
 import {UpdateService} from '../../service/update.service';
-import {QueryBuilder} from './query-builder';
+import {QueryBuilder, FilteringMode} from './query-builder';
 import {ConfigureTableService} from '../../service/configure-table.service';
 import {AlertsService} from '../../service/alerts.service';
 import {ClusterMetaDataService} from '../../service/cluster-metadata.service';
 import {ColumnMetadata} from '../../model/column-metadata';
 import {SaveSearchService} from '../../service/save-search.service';
-import {RefreshInterval} from '../configure-rows/configure-rows-enums';
 import {SaveSearch} from '../../model/save-search';
 import {TableMetadata} from '../../model/table-metadata';
-import {MetronDialogBox, DialogType} from '../../shared/metron-dialog-box';
 import {AlertSearchDirective} from '../../shared/directives/alert-search.directive';
 import {SearchResponse} from '../../model/search-response';
 import {ElasticsearchUtils} from '../../utils/elasticsearch-utils';
 import {Filter} from '../../model/filter';
-import {THREAT_SCORE_FIELD_NAME, TIMESTAMP_FIELD_NAME, ALL_TIME} from '../../utils/constants';
-import {TableViewComponent} from './table-view/table-view.component';
+import { TIMESTAMP_FIELD_NAME, ALL_TIME } from '../../utils/constants';
+import {TableViewComponent, PageChangedEvent, SortChangedEvent} from './table-view/table-view.component';
 import {Pagination} from '../../model/pagination';
-import {META_ALERTS_SENSOR_TYPE, META_ALERTS_INDEX} from '../../utils/constants';
 import {MetaAlertService} from '../../service/meta-alert.service';
 import {Facets} from '../../model/facets';
+import { GlobalConfigService } from '../../service/global-config.service';
+import { DialogService } from 'app/service/dialog.service';
+import { DialogType } from 'app/model/dialog-type';
+import { Utils } from 'app/utils/utils';
+import { AlertSource } from '../../model/alert-source';
+import { AutoPollingService } from './auto-polling/auto-polling.service';
+import { ConfigureRowsModel } from '../configure-rows/configure-rows.component';
+import { SearchRequest } from 'app/model/search-request';
+import { switchMap, map, debounceTime } from 'rxjs/operators';
 
 @Component({
   selector: 'app-alerts-list',
   templateUrl: './alerts-list.component.html',
   styleUrls: ['./alerts-list.component.scss']
 })
-
 export class AlertsListComponent implements OnInit, OnDestroy {
 
   alertsColumns: ColumnMetadata[] = [];
@@ -57,24 +63,40 @@ export class AlertsListComponent implements OnInit, OnDestroy {
   alerts: Alert[] = [];
   searchResponse: SearchResponse = new SearchResponse();
   colNumberTimerId: number;
-  refreshInterval = RefreshInterval.ONE_MIN;
-  refreshTimer: Subscription;
-  pauseRefresh = false;
-  lastPauseRefreshValue = false;
+
   isMetaAlertPresentInSelectedAlerts = false;
-  timeStampfilterPresent = false;
-  selectedTimeRange = new Filter(TIMESTAMP_FIELD_NAME, ALL_TIME, false);
-  threatScoreFieldName = THREAT_SCORE_FIELD_NAME;
+  timeStampFilterPresent = false;
+
+  readonly DEFAULT_TIME_RANGE = 'last-15-minutes';
+  selectedTimeRange: Filter;
 
   @ViewChild('table') table: ElementRef;
   @ViewChild('dataViewComponent') dataViewComponent: TableViewComponent;
   @ViewChild(AlertSearchDirective) alertSearchDirective: AlertSearchDirective;
 
+  private manualQueryFieldChangeSubs: Subscription;
+  private manualQueryInputEl: ElementRef;
+  @ViewChild('manualQuery') set manualQuery(el: ElementRef) {
+    if (el) {
+      this.manualQueryInputEl = el;
+      this.manualQueryFieldChangeSubs = this.addManualQueryFieldChangeStream(el.nativeElement);
+    }
+  };
+  get manualQuery(): ElementRef {
+    return this.manualQueryInputEl;
+  }
+
   tableMetaData = new TableMetadata();
-  queryBuilder: QueryBuilder = new QueryBuilder();
   pagination: Pagination = new Pagination();
   alertChangedSubscription: Subscription;
   groupFacets: Facets;
+  globalConfig: {} = {};
+  configSubscription: Subscription;
+  groups = [];
+  subgroupTotal = 0;
+
+  pendingSearch: Subscription;
+  staleDataState = false;
 
   constructor(private router: Router,
               private searchService: SearchService,
@@ -83,27 +105,39 @@ export class AlertsListComponent implements OnInit, OnDestroy {
               private alertsService: AlertsService,
               private clusterMetaDataService: ClusterMetaDataService,
               private saveSearchService: SaveSearchService,
-              private metronDialogBox: MetronDialogBox,
-              private metaAlertsService: MetaAlertService) {
+              private metaAlertsService: MetaAlertService,
+              private globalConfigService: GlobalConfigService,
+              private dialogService: DialogService,
+              private cdRef: ChangeDetectorRef,
+              public queryBuilder: QueryBuilder,
+              public autoPollingSvc: AutoPollingService) {
     router.events.subscribe(event => {
       if (event instanceof NavigationStart && event.url === '/alerts-list') {
         this.selectedAlerts = [];
-        this.restoreRefreshState();
+        this.restoreAutoPollingState();
       }
     });
+
+    autoPollingSvc.data.subscribe((result: SearchResponse) => {
+      this.setData(result);
+      this.staleDataState = false;
+    })
   }
 
-  addAlertChangedListner() {
-    this.metaAlertsService.alertChanged$.subscribe(metaAlertAddRemoveRequest => {
-      this.updateAlert(META_ALERTS_SENSOR_TYPE, metaAlertAddRemoveRequest.metaAlertGuid, (metaAlertAddRemoveRequest.alerts === null));
+  addAlertChangedListener() {
+    this.metaAlertsService.alertChanged$.subscribe(alertSource => {
+      if (alertSource['status'] === 'inactive') {
+        this.removeAlert(alertSource)
+      }
+      this.updateAlert(alertSource);
     });
 
-    this.alertChangedSubscription = this.updateService.alertChanged$.subscribe(patchRequest => {
-      this.updateAlert(patchRequest.sensorType, patchRequest.guid, false);
+    this.alertChangedSubscription = this.updateService.alertChanged$.subscribe(alertSource => {
+      this.updateAlert(alertSource);
     });
   }
 
-  addAlertColChangedListner() {
+  addAlertColChangedListener() {
     this.configureTableService.tableChanged$.subscribe(colChanged => {
       if (colChanged) {
         this.getAlertColumnNames(false);
@@ -111,16 +145,20 @@ export class AlertsListComponent implements OnInit, OnDestroy {
     });
   }
 
-  addLoadSavedSearchListner() {
+  addLoadSavedSearchListener() {
     this.saveSearchService.loadSavedSearch$.subscribe((savedSearch: SaveSearch) => {
-      let queryBuilder = new QueryBuilder();
-      queryBuilder.setGroupby(this.queryBuilder.groupRequest.groups.map(group => group.field));
-      queryBuilder.searchRequest = savedSearch.searchRequest;
-      queryBuilder.filters = savedSearch.filters;
-      this.queryBuilder = queryBuilder;
+      if (savedSearch.isManual === true) {
+        this.queryBuilder.setFilteringMode(FilteringMode.MANUAL);
+        this.queryBuilder.setManualQuery(savedSearch.searchRequest.query);
+      } else {
+        this.queryBuilder.setFilteringMode(FilteringMode.BUILDER);
+      }
+
+      this.queryBuilder.searchRequest = savedSearch.searchRequest;
+      this.queryBuilder.filters = savedSearch.filters;
       this.setSelectedTimeRange(savedSearch.filters);
       this.prepareColumnData(savedSearch.tableColumns, []);
-      this.timeStampfilterPresent = this.queryBuilder.isTimeStampFieldPresent();
+      this.timeStampFilterPresent = this.queryBuilder.isTimeStampFieldPresent();
       this.search(true, savedSearch);
     });
   }
@@ -128,7 +166,8 @@ export class AlertsListComponent implements OnInit, OnDestroy {
   setSelectedTimeRange(filters: Filter[]) {
     filters.forEach(filter => {
       if (filter.field === TIMESTAMP_FIELD_NAME && filter.dateFilterValue) {
-        this.selectedTimeRange = JSON.parse(JSON.stringify(filter));
+        this.selectedTimeRange = filter;
+        this.updateQueryBuilder(filter);
       }
     });
   }
@@ -153,43 +192,80 @@ export class AlertsListComponent implements OnInit, OnDestroy {
   }
 
   getAlertColumnNames(resetPaginationForSearch: boolean) {
-    Observable.forkJoin(
+    forkJoin(
         this.configureTableService.getTableMetadata(),
         this.clusterMetaDataService.getDefaultColumns()
     ).subscribe((response: any) => {
-      this.prepareData(response[0], response[1], resetPaginationForSearch);
+      this.prepareData(response[0], response[1]);
+      this.setSearchRequestSize();
+      this.refreshAlertData(resetPaginationForSearch);
     });
   }
 
-  getColumnNamesForQuery() {
-    let fieldNames = this.alertsColumns.map(columnMetadata => columnMetadata.name);
-    fieldNames = fieldNames.filter(name => !(name === 'id' || name === 'alert_status'));
-    fieldNames.push(this.threatScoreFieldName);
-    return fieldNames;
+  private refreshAlertData(resetPaginationForSearch: boolean) {
+    if (this.alerts.length) {
+      this.search(resetPaginationForSearch);
+    }
   }
 
   ngOnDestroy() {
-    this.tryStopPolling();
+    this.autoPollingSvc.onDestroy();
     this.removeAlertChangedListner();
+    this.configSubscription.unsubscribe();
+
+    if (this.manualQueryFieldChangeSubs) {
+      this.manualQueryFieldChangeSubs.unsubscribe();
+    }
   }
 
   ngOnInit() {
+    this.configSubscription = this.globalConfigService.get().subscribe((config: {}) => {
+      this.globalConfig = config;
+      if (this.globalConfig['source.type.field']) {
+        let filteredAlertsColumns = this.alertsColumns.filter(colName => colName.name !== 'source:type');
+        if (filteredAlertsColumns.length < this.alertsColumns.length) {
+          this.alertsColumns = filteredAlertsColumns;
+          this.alertsColumns.splice(2, 0, new ColumnMetadata(this.globalConfig['source.type.field'], 'string'));
+        }
+      }
+    });
+
+    this.setDefaultTimeRange(this.DEFAULT_TIME_RANGE);
     this.getAlertColumnNames(true);
-    this.addAlertColChangedListner();
-    this.addLoadSavedSearchListner();
-    this.addAlertChangedListner();
+    this.addAlertColChangedListener();
+    this.addLoadSavedSearchListener();
+    this.addAlertChangedListener();
+  }
+
+  private addManualQueryFieldChangeStream(inputDomEl: HTMLInputElement) {
+    return fromEvent<KeyboardEvent>(inputDomEl, 'keyup').pipe(
+      map(event => (event.target as HTMLInputElement).value),
+      debounceTime(300),
+    ).subscribe((manualQuery) => {
+      this.onManualQueryInputChange(manualQuery);
+    });
+  }
+
+  private onManualQueryInputChange(value: string) {
+    this.queryBuilder.setManualQuery(value);
+    this.staleDataState = true;
+  }
+
+  private setDefaultTimeRange(timeRangeId: string) {
+    const timeRange = new Filter(TIMESTAMP_FIELD_NAME, timeRangeId, false);
+    timeRange.dateFilterValue = Utils.timeRangeToDateObj(timeRange.value);
+    this.setSelectedTimeRange([timeRange]);
   }
 
   onClear() {
-    this.timeStampfilterPresent = false;
+    this.timeStampFilterPresent = false;
     this.queryBuilder.clearSearch();
-    this.selectedTimeRange = new Filter(TIMESTAMP_FIELD_NAME, ALL_TIME, false);
-    this.search();
+    this.staleDataState = true;
   }
 
-  onSearch($event) {
-    this.queryBuilder.setSearch($event);
-    this.timeStampfilterPresent = this.queryBuilder.isTimeStampFieldPresent();
+  onSearch(query: string) {
+    this.queryBuilder.setSearch(query);
+    this.timeStampFilterPresent = this.queryBuilder.isTimeStampFieldPresent();
     this.search();
     return false;
   }
@@ -198,137 +274,161 @@ export class AlertsListComponent implements OnInit, OnDestroy {
     this.onAddFilter(new Filter($event.name, $event.key));
   }
 
-  onRefreshData($event) {
-    this.search($event);
+  onSortChanged(event: SortChangedEvent) {
+    this.queryBuilder.setSort(event.sortBy, event.sortOrder);
+    this.search(true);
+  }
+
+  onPageChanged(event: PageChangedEvent) {
+    this.queryBuilder.setFromAndSize(event.from, event.size);
+    this.search(false);
   }
 
   onSelectedAlertsChange(selectedAlerts) {
     this.selectedAlerts = selectedAlerts;
-    this.isMetaAlertPresentInSelectedAlerts = this.selectedAlerts.some(alert => (alert.source.alert && alert.source.alert.length > 0));
+    this.isMetaAlertPresentInSelectedAlerts = this.selectedAlerts.some(
+      alert => (alert.source.metron_alert && alert.source.metron_alert.length > 0)
+    );
 
-    if (selectedAlerts.length > 0) {
-      this.pause();
-    } else {
-      this.resume();
-    }
+    this.autoPollingSvc.setSuppression(!!selectedAlerts.length);
   }
 
   onAddFilter(filter: Filter) {
-    this.timeStampfilterPresent = (filter.field === TIMESTAMP_FIELD_NAME);
+    this.timeStampFilterPresent = this.queryBuilder.isTimeStampFieldPresent();
     this.queryBuilder.addOrUpdateFilter(filter);
-    this.search();
+    this.staleDataState = true;
   }
 
-  onConfigRowsChange() {
-    this.searchService.interval = this.refreshInterval;
-    this.search();
+  onConfigRowsChange(config: ConfigureRowsModel) {
+    const { values, triggerQuery } = config;
+
+    this.tableMetaData.size = values.pageSize;
+    this.updatePollingInterval(values.refreshInterval);
+    this.saveSaveRowsConfig();
+
+    if (triggerQuery) {
+      this.search();
+    }
+  }
+
+  private saveSaveRowsConfig() {
+    this.configureTableService
+      .saveTableMetaData(this.tableMetaData).subscribe(
+        noop,
+        () => console.log('Unable to save settings ....')
+      );
   }
 
   onGroupsChange(groups) {
+    this.groups = groups;
     this.queryBuilder.setGroupby(groups);
     this.search();
   }
 
-  onPausePlay() {
-    this.pauseRefresh = !this.pauseRefresh;
-    if (this.pauseRefresh) {
-      this.tryStopPolling();
-    } else {
-      this.search(false);
-    }
-  }
-
   onResize() {
     clearTimeout(this.colNumberTimerId);
-    this.colNumberTimerId = setTimeout(() => { this.calcColumnsToDisplay(); }, 500);
+    this.colNumberTimerId = window.setTimeout(() => { this.calcColumnsToDisplay(); }, 500);
   }
 
   onTimeRangeChange(filter: Filter) {
-    if (filter.value === ALL_TIME) {
-      this.queryBuilder.removeFilter(filter.field);
-    } else {
-      this.queryBuilder.addOrUpdateFilter(filter);
-    }
+    this.updateQueryBuilder(filter);
+    this.staleDataState = true;
+  }
 
-    this.search();
+  private updateQueryBuilder(timeRangeFilter: Filter) {
+    if (timeRangeFilter.value === ALL_TIME) {
+      this.queryBuilder.removeFilterByField(timeRangeFilter.field);
+    } else {
+      this.queryBuilder.addOrUpdateFilter(timeRangeFilter);
+    }
   }
 
   prepareColumnData(configuredColumns: ColumnMetadata[], defaultColumns: ColumnMetadata[]) {
     this.alertsColumns = (configuredColumns && configuredColumns.length > 0) ? configuredColumns : defaultColumns;
-    this.queryBuilder.setFields(this.getColumnNamesForQuery());
     this.calcColumnsToDisplay();
   }
 
-  prepareData(tableMetaData: TableMetadata, defaultColumns: ColumnMetadata[], resetPagination: boolean) {
-    this.tableMetaData = tableMetaData;
-    this.refreshInterval = this.tableMetaData.refreshInterval;
-
-    this.updateConfigRowsSettings();
+  prepareData(tableMetaData: TableMetadata, defaultColumns: ColumnMetadata[]) {
     this.prepareColumnData(tableMetaData.tableColumns, defaultColumns);
-
-    this.search(resetPagination);
+    this.tableMetaData = tableMetaData;
   }
 
-  processEscalate() {
-    this.updateService.updateAlertState(this.selectedAlerts, 'ESCALATE', false).subscribe(results => {
-      this.updateSelectedAlertStatus('ESCALATE');
-    });
+  preventDropdownOptionIfDisabled(event: Event): boolean {
+    if ((event.target as HTMLElement).classList.contains('disabled')) {
+      event.stopPropagation();
+      event.preventDefault();
+      return false;
+    }
+    return true
   }
 
-  processDismiss() {
-    this.updateService.updateAlertState(this.selectedAlerts, 'DISMISS', false).subscribe(results => {
-      this.updateSelectedAlertStatus('DISMISS');
-    });
+  processEscalate(event: Event) {
+    if (this.preventDropdownOptionIfDisabled(event) === true) {
+      this.updateService.updateAlertState(this.selectedAlerts, 'ESCALATE', false).subscribe(() => {
+        const alerts = [...this.selectedAlerts];
+        this.updateSelectedAlertStatus('ESCALATE');
+        this.alertsService.escalate(alerts).subscribe();
+      });
+    }
   }
 
-  processOpen() {
-    this.updateService.updateAlertState(this.selectedAlerts, 'OPEN', false).subscribe(results => {
-      this.updateSelectedAlertStatus('OPEN');
-    });
+  processDismiss(event: Event) {
+    if (this.preventDropdownOptionIfDisabled(event) === true) {
+      this.updateService.updateAlertState(this.selectedAlerts, 'DISMISS', false).subscribe(results => {
+        this.updateSelectedAlertStatus('DISMISS');
+      });
+    }
   }
 
-  processResolve() {
-    this.updateService.updateAlertState(this.selectedAlerts, 'RESOLVE', false).subscribe(results => {
-      this.updateSelectedAlertStatus('RESOLVE');
-    });
+  processOpen(event: Event) {
+    if (this.preventDropdownOptionIfDisabled(event) === true) {
+      this.updateService.updateAlertState(this.selectedAlerts, 'OPEN', false).subscribe(results => {
+        this.updateSelectedAlertStatus('OPEN');
+      });
+    }
   }
 
-  processAddToAlert() {
-    this.metaAlertsService.selectedAlerts = this.selectedAlerts;
-    this.router.navigateByUrl('/alerts-list(dialog:add-to-meta-alert)');
+  processResolve(event: Event) {
+    if (this.preventDropdownOptionIfDisabled(event) === true) {
+      this.updateService.updateAlertState(this.selectedAlerts, 'RESOLVE', false).subscribe(results => {
+        this.updateSelectedAlertStatus('RESOLVE');
+      });
+    }
   }
 
-  removeFilter(field: string) {
-    this.timeStampfilterPresent = (field === TIMESTAMP_FIELD_NAME) ? false : this.timeStampfilterPresent;
-    this.queryBuilder.removeFilter(field);
-    this.search();
-  }
-
-  restoreRefreshState() {
-    this.pauseRefresh = this.lastPauseRefreshValue;
-    this.tryStartPolling();
+  processAddToAlert(event: Event) {
+    if (this.preventDropdownOptionIfDisabled(event) === true) {
+      this.metaAlertsService.selectedAlerts = this.selectedAlerts;
+      this.router.navigateByUrl('/alerts-list(dialog:add-to-meta-alert)');
+    }
   }
 
   search(resetPaginationParams = true, savedSearch?: SaveSearch) {
-    this.saveCurrentSearch(savedSearch);
+    if (savedSearch) { this.saveCurrentSearch(savedSearch); }
     if (resetPaginationParams) {
       this.pagination.from = 0;
     }
 
     this.setSearchRequestSize();
 
-    this.searchService.search(this.queryBuilder.searchRequest).subscribe(results => {
-      this.setData(results);
-    }, error => {
-      this.setData(new SearchResponse());
-      this.metronDialogBox.showConfirmationMessage(ElasticsearchUtils.extractESErrorMessage(error), DialogType.Error);
-    });
+    this.pendingSearch = this.searchService.search(this.queryBuilder.searchRequest).subscribe(
+      results => {
+        this.setData(results);
+        this.pendingSearch = null;
+        this.staleDataState = false;
+      }, error => {
+        this.setData(new SearchResponse());
+        this.pendingSearch = null;
+        this.dialogService.launchDialog('Server were unable to apply query string.', DialogType.Error);
+      });
 
-    this.tryStartPolling();
+    if (this.autoPollingSvc.getIsPollingActive()) {
+      this.autoPollingSvc.dropNextAndContinue();
+    }
   }
 
   setSearchRequestSize() {
-    if (this.queryBuilder.groupRequest.groups.length === 0) {
+    if (this.groups.length === 0) {
       this.queryBuilder.searchRequest.from = this.pagination.from;
       if (this.tableMetaData.size) {
         this.pagination.size = this.tableMetaData.size;
@@ -340,19 +440,19 @@ export class AlertsListComponent implements OnInit, OnDestroy {
     }
   }
 
-  saveCurrentSearch(savedSearch: SaveSearch) {
+  saveCurrentSearch(savedSearch?: SaveSearch) {
+    const isManual = () => this.queryBuilder.getFilteringMode() === FilteringMode.MANUAL;
     if (this.queryBuilder.query !== '*') {
       if (!savedSearch) {
         savedSearch = new SaveSearch();
         savedSearch.searchRequest = this.queryBuilder.searchRequest;
         savedSearch.tableColumns = this.alertsColumns;
         savedSearch.filters = this.queryBuilder.filters;
-        savedSearch.searchRequest.query = '';
+        savedSearch.searchRequest.query = isManual() ? this.queryBuilder.query : '';
         savedSearch.name = this.queryBuilder.generateNameForSearchRequest();
+        savedSearch.isManual = isManual();
       }
-
-      this.saveSearchService.saveAsRecentSearches(savedSearch).subscribe(() => {
-      });
+      this.saveSearchService.saveAsRecentSearches(savedSearch).subscribe();
     }
   }
 
@@ -367,85 +467,43 @@ export class AlertsListComponent implements OnInit, OnDestroy {
 
   private createGroupFacets(results: SearchResponse) {
     this.groupFacets = JSON.parse(JSON.stringify(results.facetCounts));
-    if (this.groupFacets['source:type']) {
-      delete this.groupFacets['source:type']['metaalert'];
+    if (this.groupFacets[this.globalConfig['source.type.field']]) {
+      delete this.groupFacets[this.globalConfig['source.type.field']]['metaalert'];
     }
   }
 
   showConfigureTable() {
-    this.saveRefreshState();
+    this.autoPollingSvc.setSuppression(true);
     this.router.navigateByUrl('/alerts-list(dialog:configure-table)');
   }
 
   showDetails(alert: Alert) {
     this.selectedAlerts = [];
     this.selectedAlerts = [alert];
-    this.saveRefreshState();
-    let sourceType = (alert.index === META_ALERTS_INDEX && !alert.source['source:type'])
-        ? META_ALERTS_SENSOR_TYPE : alert.source['source:type'];
+    this.autoPollingSvc.setSuppression(true);
+    let sourceType = alert.source[this.globalConfig['source.type.field']];
     let url = '/alerts-list(dialog:details/' + sourceType + '/' + alert.source.guid + '/' + alert.index + ')';
     this.router.navigateByUrl(url);
   }
 
-  saveRefreshState() {
-    this.lastPauseRefreshValue = this.pauseRefresh;
-    this.tryStopPolling();
-  }
-
-  pause() {
-    this.pauseRefresh = true;
-    this.tryStopPolling();
-  }
-
-  resume() {
-    this.pauseRefresh = false;
-    this.tryStartPolling();
-  }
-
   showSavedSearches() {
-    this.saveRefreshState();
+    this.autoPollingSvc.setSuppression(true);
     this.router.navigateByUrl('/alerts-list(dialog:saved-searches)');
   }
 
   showSaveSearch() {
-    this.saveRefreshState();
+    this.autoPollingSvc.setSuppression(true);
     this.saveSearchService.setCurrentQueryBuilderAndTableColumns(this.queryBuilder, this.alertsColumns);
     this.router.navigateByUrl('/alerts-list(dialog:save-search)');
   }
 
-  tryStartPolling() {
-    if (!this.pauseRefresh) {
-      this.tryStopPolling();
-      this.refreshTimer = this.searchService.pollSearch(this.queryBuilder).subscribe(results => {
-        this.setData(results);
-      });
-    }
+  updateAlert(alertSource: AlertSource) {
+    this.alerts.filter(alert => alert.source.guid === alertSource.guid)
+            .map(alert => alert.source = alertSource);
   }
 
-  tryStopPolling() {
-    if (this.refreshTimer && !this.refreshTimer.closed) {
-      this.refreshTimer.unsubscribe();
-    }
-  }
-
-  updateConfigRowsSettings() {
-    this.searchService.interval = this.refreshInterval;
-  }
-
-  updateAlert(sensorType: string, guid: string, isDelete: boolean) {
-    if (isDelete) {
-      let alertIndex = -1;
-      this.alerts.forEach((alert, index) => {
-        alertIndex = (alert.source.guid === guid) ? index : alertIndex;
-      });
-      this.alerts.splice(alertIndex, 1);
-      return;
-    }
-
-    this.searchService.getAlert(sensorType, guid).subscribe(alertSource => {
-      this.alerts.filter(alert => alert.source.guid === guid)
-      .map(alert => alert.source = alertSource);
-    });
+  removeAlert(alertSource: AlertSource) {
+    this.alerts = this.alerts.filter(alert => alert.source.guid !== alertSource.guid);
   }
 
   updateSelectedAlertStatus(status: string) {
@@ -453,10 +511,65 @@ export class AlertsListComponent implements OnInit, OnDestroy {
       selectedAlert.source['alert_status'] = status;
     }
     this.selectedAlerts = [];
-    this.resume();
+    this.autoPollingSvc.setSuppression(false);
   }
 
   removeAlertChangedListner() {
     this.alertChangedSubscription.unsubscribe();
   }
+
+  onTreeViewChange(subgroupTotal) {
+    this.subgroupTotal = subgroupTotal;
+    this.cdRef.detectChanges();
+  }
+
+  getStaleDataWarning() {
+    if (this.autoPollingSvc.getIsPollingActive()) {
+      return `<i class="fa fa-warning" aria-hidden="true"></i> Data is in a stale state!
+        Automatic refresh is turned on. Your filter and/or time-range changes will apply automatically on next refresh.`;
+      } else {
+      return `<i class="fa fa-warning" aria-hidden="true"></i> Data is in a stale state!
+        Click <i class="fa fa-search" aria-hidden="true"></i> to update your view based
+        on your current filter and time-range configuration!`;
+    }
+  }
+
+  getPollingCongestionWarning() {
+    return `<i class="fa fa-warning" aria-hidden="true"></i> Refresh interval is shorter than the response time.
+      Please increase the refresh interval in the <i class="fa fa-sliders" aria-hidden="true"></i> menu above,
+      or try to optimize your query filter.`;
+  }
+
+  private updatePollingInterval(refreshInterval: number): void {
+    this.autoPollingSvc.setInterval(refreshInterval);
+  }
+
+  private restoreAutoPollingState() {
+    if (this.autoPollingSvc.getIsPollingActive()) {
+      this.autoPollingSvc.setSuppression(false);
+    }
+  }
+
+  isQueryBuilderModeManual() {
+    return this.queryBuilder.getFilteringMode() === FilteringMode.MANUAL;
+  }
+
+  toggleQueryBuilderMode() {
+    // FIXME setting timerange on toggle feels like a hack
+    this.setSelectedTimeRange([this.selectedTimeRange]);
+    if (this.queryBuilder.getFilteringMode() === FilteringMode.BUILDER) {
+      this.queryBuilder.setFilteringMode(FilteringMode.MANUAL);
+    } else {
+      this.queryBuilder.setFilteringMode(FilteringMode.BUILDER);
+    }
+  }
+
+  queryForTreeView() {
+    return this.queryBuilder.query;
+  }
+
+  onBuilderQueryChanged(query: string) {
+    this.staleDataState = true;
+  }
+
 }

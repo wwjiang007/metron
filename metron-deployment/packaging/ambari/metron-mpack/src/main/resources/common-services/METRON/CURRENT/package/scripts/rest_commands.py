@@ -19,27 +19,33 @@ limitations under the License.
 """
 import os
 
-from datetime import datetime
+import metron_service
+from metron_security import kinit
 from resource_management.core.logger import Logger
 from resource_management.core.resources.system import Directory, Execute, File
 from resource_management.libraries.functions import get_user_call_output
 from resource_management.libraries.functions.format import format
 from resource_management.libraries.functions.show_logs import show_logs
 
-import metron_service
-from metron_security import kinit
-
 
 # Wrap major operations and functionality in this class
 class RestCommands:
     __params = None
-    __acl_configured = False
+    __kafka_configured = False
+    __kafka_acl_configured = False
+    __hbase_configured = False
+    __hbase_acl_configured = False
+    __metron_user_hdfs_dir_configured = False
 
     def __init__(self, params):
         if params is None:
             raise ValueError("params argument is required for initialization")
         self.__params = params
-        self.__acl_configured = os.path.isfile(self.__params.rest_acl_configured_flag_file)
+        self.__kafka_configured = os.path.isfile(self.__params.rest_kafka_configured_flag_file)
+        self.__kafka_acl_configured = os.path.isfile(self.__params.rest_kafka_acl_configured_flag_file)
+        self.__hbase_configured = os.path.isfile(self.__params.rest_hbase_configured_flag_file)
+        self.__hbase_acl_configured = os.path.isfile(self.__params.rest_hbase_acl_configured_flag_file)
+        self.__metron_user_hdfs_dir_configured = os.path.isfile(self.__params.metron_user_hdfs_dir_configured_flag_file)
         Directory(params.metron_rest_pid_dir,
                   mode=0755,
                   owner=params.metron_user,
@@ -53,14 +59,38 @@ class RestCommands:
                   create_parents=True
                   )
 
-    def is_acl_configured(self):
-        return self.__acl_configured
-
-    def set_acl_configured(self):
-        metron_service.set_configured(self.__params.metron_user, self.__params.rest_acl_configured_flag_file, "Setting REST ACL configured to true")
-
     def __get_topics(self):
         return [self.__params.metron_escalation_topic]
+
+    def is_kafka_configured(self):
+        return self.__kafka_configured
+
+    def is_kafka_acl_configured(self):
+        return self.__kafka_acl_configured
+
+    def is_hbase_configured(self):
+        return self.__hbase_configured
+
+    def is_hbase_acl_configured(self):
+        return self.__hbase_acl_configured
+
+    def is_metron_user_hdfs_dir_configured(self):
+        return self.__metron_user_hdfs_dir_configured
+
+    def set_kafka_configured(self):
+        metron_service.set_configured(self.__params.metron_user, self.__params.rest_kafka_configured_flag_file, "Setting Kafka configured to True for rest")
+
+    def set_kafka_acl_configured(self):
+        metron_service.set_configured(self.__params.metron_user, self.__params.rest_kafka_acl_configured_flag_file, "Setting Kafka ACL configured to True for rest")
+
+    def set_hbase_configured(self):
+        metron_service.set_configured(self.__params.metron_user, self.__params.rest_hbase_configured_flag_file, "Setting HBase configured to True for rest")
+
+    def set_hbase_acl_configured(self):
+        metron_service.set_configured(self.__params.metron_user, self.__params.rest_hbase_acl_configured_flag_file, "Setting HBase ACL configured to True for rest")
+
+    def set_metron_user_hdfs_dir_configured(self):
+        metron_service.set_configured(self.__params.metron_user, self.__params.metron_user_hdfs_dir_configured_flag_file, "Setting Metron user HDFS directory configured to True")
 
     def init_kafka_topics(self):
         Logger.info('Creating Kafka topics for rest')
@@ -75,6 +105,16 @@ class RestCommands:
 
         groups = ['metron-rest']
         metron_service.init_kafka_acl_groups(self.__params, groups)
+
+    def create_metron_user_hdfs_dir(self):
+        Logger.info("Creating HDFS location for Metron user")
+        self.__params.HdfsResource(self.__params.metron_user_hdfs_dir,
+                                   type="directory",
+                                   action="create_on_execute",
+                                   owner=self.__params.metron_user,
+                                   group=self.__params.metron_group,
+                                   mode=0755,
+                                   )
 
     def start_rest_application(self):
         """
@@ -101,8 +141,14 @@ class RestCommands:
           "export METRON_INDEX_CP={metron_indexing_classpath};"
           "export METRON_LOG_DIR={metron_log_dir};"
           "export METRON_PID_FILE={pid_file};"
+          "export HDP_VERSION={hdp_version};"
+          "export METRON_RA_INDEXING_WRITER={ra_indexing_writer};"
+          "export METRON_LDAP_PASSWORD={metron_ldap_password!p};"
+          "export METRON_LDAP_SSL_TRUSTSTORE_PASSWORD={metron_ldap_ssl_truststore_password!p};"
           "{metron_home}/bin/metron-rest.sh;"
           "unset METRON_JDBC_PASSWORD;"
+          "unset METRON_LDAP_PASSWORD;"
+          "unset METRON_LDAP_SSL_TRUSTSTORE_PASSWORD;"
         ))
 
         Execute(cmd,
@@ -178,6 +224,35 @@ class RestCommands:
             self.__params.metron_rest_host,
             self.__params.metron_rest_port,
             self.__params.metron_user)
+
+    def create_hbase_tables(self):
+        Logger.info("Creating HBase Tables")
+        metron_service.create_hbase_table(self.__params,
+                                          self.__params.user_settings_hbase_table,
+                                          self.__params.user_settings_hbase_cf)
+        Logger.info("Done creating HBase Tables")
+        self.set_hbase_configured()
+
+    def set_hbase_acls(self):
+        Logger.info("Setting HBase ACLs")
+        if self.__params.security_enabled:
+            kinit(self.__params.kinit_path_local,
+                  self.__params.hbase_keytab_path,
+                  self.__params.hbase_principal_name,
+                  execute_user=self.__params.hbase_user)
+
+        cmd = "echo \"grant '{0}', 'RW', '{1}'\" | hbase shell -n"
+        add_rest_acl_cmd = cmd.format(self.__params.metron_user, self.__params.user_settings_hbase_table)
+        Execute(add_rest_acl_cmd,
+                tries=3,
+                try_sleep=5,
+                logoutput=False,
+                path='/usr/sbin:/sbin:/usr/local/bin:/bin:/usr/bin',
+                user=self.__params.hbase_user
+                )
+
+        Logger.info("Done setting HBase ACLs")
+        self.set_hbase_acl_configured()
 
     def service_check(self, env):
         """

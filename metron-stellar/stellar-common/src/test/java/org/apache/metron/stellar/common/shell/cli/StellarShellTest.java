@@ -23,17 +23,16 @@ import org.jboss.aesh.console.AeshContext;
 import org.jboss.aesh.console.ConsoleOperation;
 import org.jboss.aesh.console.operator.ControlOperator;
 import org.jboss.aesh.console.settings.DefaultAeshContext;
-import org.junit.After;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests the StellarShell class.
@@ -44,21 +43,21 @@ public class StellarShellTest {
   private ByteArrayOutputStream out;
   private ByteArrayOutputStream err;
 
-  @Before
+  @BeforeEach
   public void setup() throws Exception {
 
     out = new ByteArrayOutputStream();
     err = new ByteArrayOutputStream();
 
     // setup streams so that we can capture stdout
-    System.setOut(new PrintStream(out));
-    System.setErr(new PrintStream(err));
+    System.setOut(new PrintStream(out, false, StandardCharsets.UTF_8.name()));
+    System.setErr(new PrintStream(err, false, StandardCharsets.UTF_8.name()));
 
     String[] args = new String[0];
     stellarShell = new StellarShell(args);
   }
 
-  @After
+  @AfterEach
   public void cleanUp() {
     System.setOut(null);
     System.setErr(null);
@@ -98,6 +97,12 @@ public class StellarShellTest {
   public void testExecuteStellar() throws Exception {
     stellarShell.execute(createOp("2 + 2"));
     assertEquals("4", stdout());
+  }
+
+  @Test
+  public void testBackslashInStrings() throws Exception {
+    stellarShell.execute(createOp("SPLIT('foo\\\\bar', '\\\\')"));
+    assertEquals("[foo, bar]", stdout());
   }
 
   /**

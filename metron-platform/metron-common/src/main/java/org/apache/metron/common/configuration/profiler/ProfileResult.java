@@ -20,10 +20,12 @@ package org.apache.metron.common.configuration.profiler;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
+import java.io.Serializable;
+
 /**
  * Defines the 'result' field of a Profile definition.
  */
-public class ProfileResult {
+public class ProfileResult implements Serializable {
 
   /**
    * A Stellar expression that is executed to produce
@@ -40,6 +42,10 @@ public class ProfileResult {
   @JsonProperty("triage")
   private ProfileTriageExpressions triageExpressions;
 
+  public ProfileResult() {
+    // no-arg constructor required for kryo serialization in storm
+  }
+
   @JsonCreator
   public ProfileResult(
           @JsonProperty(value = "profile", required = true) ProfileResultExpressions profileExpressions,
@@ -51,7 +57,7 @@ public class ProfileResult {
   /**
    * Allows a single result expression to be interpreted as a 'profile' expression.
    *
-   * The profile definition
+   * <p>The profile definition
    *    <pre>{@code {..., "result": "2 + 2" }}</pre>
    * is equivalent to
    *    <pre>{@code {..., "result": { "profile": "2 + 2" }}}</pre>

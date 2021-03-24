@@ -77,7 +77,7 @@ public enum DayPredicates {
    */
   HOLIDAY(x -> new HolidaysPredicate(x)),
   /**
-   * True if the day is a specifie ddate, false otherwise.
+   * True if the day is a specified date, false otherwise.
    */
   DATE( x -> new DateSpecifierPredicate(x))
   ;
@@ -104,7 +104,7 @@ public enum DayPredicates {
    * Create a Predicate given a set of arguments.
    * @param name
    * @param arg
-   * @return Predicate<Long> return a Predicate given a set of arguments
+   * @return {@code Predicate<Long>} return a Predicate given a set of arguments
    */
   public static Predicate<Long> create(String name, List<String> arg) {
     return DayPredicates.valueOf(name).predicateCreator.apply(arg);

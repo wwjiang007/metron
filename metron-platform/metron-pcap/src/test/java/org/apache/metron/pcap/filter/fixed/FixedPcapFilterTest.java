@@ -18,18 +18,24 @@
 
 package org.apache.metron.pcap.filter.fixed;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.metron.common.Constants;
-import org.junit.Assert;
-import org.junit.Test;
+import org.apache.metron.pcap.PacketInfo;
+import org.junit.jupiter.api.Test;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.MatcherAssert.assertThat;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public class FixedPcapFilterTest {
 
   @Test
-  public void string_representation_of_query_gets_formatted() throws Exception {
+  public void string_representation_of_query_gets_formatted() {
     final LinkedHashMap<String, String> fields = new LinkedHashMap<String, String>() {{
       put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
       put(Constants.Fields.SRC_PORT.getName(), "0");
@@ -39,21 +45,21 @@ public class FixedPcapFilterTest {
     }};
     String actual = new FixedPcapFilter.Configurator().queryToString(fields);
     String expected = "src_ip_0_dst_ip_1_false";
-    Assert.assertThat("string representation did not match", actual, equalTo(expected));
+    assertThat("string representation did not match", actual, equalTo(expected));
   }
 
   @Test
-  public void string_representation_of_empty_fields_empty() throws Exception {
+  public void string_representation_of_empty_fields_empty() {
     {
-      final LinkedHashMap<String, String> fields = new LinkedHashMap<String, String>();
+      final LinkedHashMap<String, String> fields = new LinkedHashMap<>();
       String actual = new FixedPcapFilter.Configurator().queryToString(fields);
       String expected = "";
-      Assert.assertThat("string representation did not match", actual, equalTo(expected));
+      assertThat("string representation did not match", actual, equalTo(expected));
     }
     {
       String actual = new FixedPcapFilter.Configurator().queryToString(null);
       String expected = "";
-      Assert.assertThat("string representation did not match", actual, equalTo(expected));
+      assertThat("string representation did not match", actual, equalTo(expected));
     }
     {
       final LinkedHashMap<String, String> fields = new LinkedHashMap<String, String>() {{
@@ -62,7 +68,267 @@ public class FixedPcapFilterTest {
       }};
       String actual = new FixedPcapFilter.Configurator().queryToString(fields);
       String expected = "_";
-      Assert.assertThat("string representation did not match", actual, equalTo(expected));
+      assertThat("string representation did not match", actual, equalTo(expected));
+    }
+  }
+
+  @Test
+  public void testTrivialEquality() {
+    Configuration config = new Configuration();
+    final Map<String, String> fields = new HashMap<String, String>() {{
+      put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+      put(Constants.Fields.SRC_PORT.getName(), "0");
+      put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+      put(Constants.Fields.DST_PORT.getName(), "1");
+      put(Constants.Fields.INCLUDES_REVERSE_TRAFFIC.getName(), "false");
+    }};
+    new FixedPcapFilter.Configurator().addToConfig(fields, config);
+    {
+      FixedPcapFilter filter = new FixedPcapFilter() {
+        @Override
+        protected Map<String, Object> packetToFields(PacketInfo pi) {
+          return new HashMap<String, Object>() {{
+            put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+            put(Constants.Fields.SRC_PORT.getName(), 0);
+            put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+            put(Constants.Fields.DST_PORT.getName(), 1);
+          }};
+        }
+      };
+      filter.configure(config);
+      assertTrue(filter.test(null));
+    }
+  }
+
+  @Test
+  public void testReverseTraffic() {
+    Configuration config = new Configuration();
+    final Map<String, String> fields = new HashMap<String, String>() {{
+      put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+      put(Constants.Fields.SRC_PORT.getName(), "0");
+      put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+      put(Constants.Fields.DST_PORT.getName(), "1");
+      put(Constants.Fields.INCLUDES_REVERSE_TRAFFIC.getName(), "true");
+    }};
+    new FixedPcapFilter.Configurator().addToConfig(fields, config);
+    {
+      FixedPcapFilter filter = new FixedPcapFilter() {
+        @Override
+        protected Map<String, Object> packetToFields(PacketInfo pi) {
+          return new HashMap<String, Object>() {{
+            put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+            put(Constants.Fields.SRC_PORT.getName(), 0);
+            put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+            put(Constants.Fields.DST_PORT.getName(), 1);
+          }};
+        }
+      };
+      filter.configure(config);
+      assertTrue(filter.test(null));
+    }
+    new FixedPcapFilter.Configurator().addToConfig(fields, config);
+    {
+      FixedPcapFilter filter = new FixedPcapFilter() {
+        @Override
+        protected Map<String, Object> packetToFields(PacketInfo pi) {
+          return new HashMap<String, Object>() {{
+            put(Constants.Fields.SRC_ADDR.getName(), "dst_ip");
+            put(Constants.Fields.SRC_PORT.getName(), 1);
+            put(Constants.Fields.DST_ADDR.getName(), "src_ip");
+            put(Constants.Fields.DST_PORT.getName(), 0);
+          }};
+        }
+      };
+      filter.configure(config);
+      assertTrue(filter.test(null));
+    }
+    new FixedPcapFilter.Configurator().addToConfig(fields, config);
+    {
+      FixedPcapFilter filter = new FixedPcapFilter() {
+        @Override
+        protected Map<String, Object> packetToFields(PacketInfo pi) {
+          return new HashMap<String, Object>() {{
+            put(Constants.Fields.SRC_ADDR.getName(), "dst_ip");
+            put(Constants.Fields.SRC_PORT.getName(), 0);
+            put(Constants.Fields.DST_ADDR.getName(), "src_ip");
+            put(Constants.Fields.DST_PORT.getName(), 1);
+          }};
+        }
+      };
+      filter.configure(config);
+      assertFalse(filter.test(null));
+    }
+  }
+
+  @Test
+  public void testMissingDstAddr() {
+    Configuration config = new Configuration();
+    final HashMap<String, String> fields = new HashMap<String, String>() {{
+      put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+      put(Constants.Fields.SRC_PORT.getName(), "0");
+      put(Constants.Fields.DST_PORT.getName(), "1");
+      put(Constants.Fields.INCLUDES_REVERSE_TRAFFIC.getName(), "false");
+    }};
+    new FixedPcapFilter.Configurator().addToConfig(fields, config);
+    {
+      FixedPcapFilter filter = new FixedPcapFilter() {
+        @Override
+        protected HashMap<String, Object> packetToFields(PacketInfo pi) {
+          return new HashMap<String, Object>() {{
+            put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+            put(Constants.Fields.SRC_PORT.getName(), 0);
+            put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+            put(Constants.Fields.DST_PORT.getName(), 1);
+          }};
+        }
+      };
+      filter.configure(config);
+      assertTrue(filter.test(null));
+    }
+    new FixedPcapFilter.Configurator().addToConfig(fields, config);
+    {
+      FixedPcapFilter filter = new FixedPcapFilter() {
+        @Override
+        protected HashMap<String, Object> packetToFields(PacketInfo pi) {
+          return new HashMap<String, Object>() {{
+            put(Constants.Fields.SRC_ADDR.getName(), "src_ip1");
+            put(Constants.Fields.SRC_PORT.getName(), 0);
+            put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+            put(Constants.Fields.DST_PORT.getName(), 1);
+          }};
+        }
+      };
+      filter.configure(config);
+      assertFalse(filter.test(null));
+    }
+  }
+
+  @Test
+  public void testMissingDstPort() {
+    Configuration config = new Configuration();
+    final HashMap<String, String> fields = new HashMap<String, String>() {{
+      put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+      put(Constants.Fields.SRC_PORT.getName(), "0");
+      put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+      put(Constants.Fields.INCLUDES_REVERSE_TRAFFIC.getName(), "false");
+    }};
+    new FixedPcapFilter.Configurator().addToConfig(fields, config);
+    {
+      FixedPcapFilter filter = new FixedPcapFilter() {
+        @Override
+        protected HashMap<String, Object> packetToFields(PacketInfo pi) {
+          return new HashMap<String, Object>() {{
+            put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+            put(Constants.Fields.SRC_PORT.getName(), 0);
+            put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+            put(Constants.Fields.DST_PORT.getName(), 1);
+          }};
+        }
+      };
+      filter.configure(config);
+      assertTrue(filter.test(null));
+    }
+    new FixedPcapFilter.Configurator().addToConfig(fields, config);
+    {
+      FixedPcapFilter filter = new FixedPcapFilter() {
+        @Override
+        protected HashMap<String, Object> packetToFields(PacketInfo pi) {
+          return new HashMap<String, Object>() {{
+            put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+            put(Constants.Fields.SRC_PORT.getName(), 0);
+            put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+            put(Constants.Fields.DST_PORT.getName(), 100);
+          }};
+        }
+      };
+      filter.configure(config);
+      assertTrue(filter.test(null));
+    }
+    new FixedPcapFilter.Configurator().addToConfig(fields, config);
+    {
+      FixedPcapFilter filter = new FixedPcapFilter() {
+        @Override
+        protected HashMap<String, Object> packetToFields(PacketInfo pi) {
+          return new HashMap<String, Object>() {{
+            put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+            put(Constants.Fields.SRC_PORT.getName(), 100);
+            put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+            put(Constants.Fields.DST_PORT.getName(), 100);
+          }};
+        }
+      };
+      filter.configure(config);
+      assertFalse(filter.test(null));
+    }
+  }
+
+  @Test
+  public void testMissingSrcAddr() {
+    Configuration config = new Configuration();
+    final HashMap<String, String> fields = new HashMap<String, String>() {{
+      put(Constants.Fields.SRC_PORT.getName(), "0");
+      put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+      put(Constants.Fields.DST_PORT.getName(), "1");
+      put(Constants.Fields.INCLUDES_REVERSE_TRAFFIC.getName(), "false");
+    }};
+    new FixedPcapFilter.Configurator().addToConfig(fields, config);
+    {
+      FixedPcapFilter filter = new FixedPcapFilter() {
+        @Override
+        protected HashMap<String, Object> packetToFields(PacketInfo pi) {
+          return new HashMap<String, Object>() {{
+            put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+            put(Constants.Fields.SRC_PORT.getName(), 0);
+            put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+            put(Constants.Fields.DST_PORT.getName(), 1);
+          }};
+        }
+      };
+      filter.configure(config);
+      assertTrue(filter.test(null));
+    }
+  }
+
+  @Test
+  public void testMissingSrcPort() {
+    Configuration config = new Configuration();
+    final HashMap<String, String> fields = new HashMap<String, String>() {{
+      put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+      put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+      put(Constants.Fields.DST_PORT.getName(), "1");
+      put(Constants.Fields.INCLUDES_REVERSE_TRAFFIC.getName(), "false");
+    }};
+    new FixedPcapFilter.Configurator().addToConfig(fields, config);
+    {
+      FixedPcapFilter filter = new FixedPcapFilter() {
+        @Override
+        protected HashMap<String, Object> packetToFields(PacketInfo pi) {
+          return new HashMap<String, Object>() {{
+            put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+            put(Constants.Fields.SRC_PORT.getName(), 0);
+            put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+            put(Constants.Fields.DST_PORT.getName(), 1);
+          }};
+        }
+      };
+      filter.configure(config);
+      assertTrue(filter.test(null));
+    }
+    new FixedPcapFilter.Configurator().addToConfig(fields, config);
+    {
+      FixedPcapFilter filter = new FixedPcapFilter() {
+        @Override
+        protected HashMap<String, Object> packetToFields(PacketInfo pi) {
+          return new HashMap<String, Object>() {{
+            put(Constants.Fields.SRC_ADDR.getName(), "src_ip");
+            put(Constants.Fields.SRC_PORT.getName(), 100);
+            put(Constants.Fields.DST_ADDR.getName(), "dst_ip");
+            put(Constants.Fields.DST_PORT.getName(), 1);
+          }};
+        }
+      };
+      filter.configure(config);
+      assertTrue(filter.test(null));
     }
   }
 

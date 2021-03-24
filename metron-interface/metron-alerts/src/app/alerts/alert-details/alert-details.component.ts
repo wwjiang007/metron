@@ -15,9 +15,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { Component, OnInit } from '@angular/core';
-import {Router, ActivatedRoute} from '@angular/router';
+import {Component, OnInit, ViewChild, ElementRef} from '@angular/core';
+import {ActivatedRoute, Router, NavigationStart} from '@angular/router';
 import * as moment from 'moment/moment';
+import {Subscription} from 'rxjs';
 
 import {SearchService} from '../../service/search.service';
 import {UpdateService} from '../../service/update.service';
@@ -28,18 +29,20 @@ import {PatchRequest} from '../../model/patch-request';
 import {Patch} from '../../model/patch';
 import {AlertComment} from './alert-comment';
 import {AuthenticationService} from '../../service/authentication.service';
-import {MetronDialogBox} from '../../shared/metron-dialog-box';
-import {META_ALERTS_INDEX, META_ALERTS_SENSOR_TYPE} from '../../utils/constants';
+import {CommentAddRemoveRequest} from '../../model/comment-add-remove-request';
+import {META_ALERTS_SENSOR_TYPE} from '../../utils/constants';
+import {GlobalConfigService} from '../../service/global-config.service';
+import { DialogService } from 'app/service/dialog.service';
+import { ConfirmationType } from 'app/model/confirmation-type';
 
 export enum AlertState {
   NEW, OPEN, ESCALATE, DISMISS, RESOLVE
 }
-
 export enum Tabs {
   DETAILS, COMMENTS
 }
 
-class AlertCommentWrapper {
+export class AlertCommentWrapper {
   alertComment: AlertComment;
   displayTime: string;
 
@@ -71,6 +74,10 @@ export class AlertDetailsComponent implements OnInit {
   alertFields: string[] = [];
   alertCommentStr = '';
   alertCommentsWrapper: AlertCommentWrapper[] = [];
+  globalConfig: {} = {};
+  globalConfigService: GlobalConfigService;
+  configSubscription: Subscription;
+  @ViewChild('metaAlertNameInput') metaAlertNameInput: ElementRef;
 
   constructor(private router: Router,
               private activatedRoute: ActivatedRoute,
@@ -78,8 +85,16 @@ export class AlertDetailsComponent implements OnInit {
               private updateService: UpdateService,
               private alertsService: AlertsService,
               private authenticationService: AuthenticationService,
-              private metronDialogBox: MetronDialogBox) {
+              private dialogService: DialogService,
+              globalConfigService: GlobalConfigService) {
+    this.globalConfigService = globalConfigService;
 
+    router.events.subscribe(event => {
+      if (event instanceof NavigationStart && /\/alerts-list\(dialog:details\//.test(event.url)) {
+        this.alertSources = [];
+        this.alertSource = null;
+      }
+    });
   }
 
   goBack() {
@@ -87,24 +102,21 @@ export class AlertDetailsComponent implements OnInit {
     return false;
   }
 
-  getData(fireToggleEditor = false) {
+  getData() {
     this.alertCommentStr = '';
     this.searchService.getAlert(this.alertSourceType, this.alertId).subscribe(alertSource => {
-      this.alertSource = alertSource;
-      this.selectedAlertState = this.getAlertState(alertSource['alert_status']);
-      this.alertSources = (alertSource.alert && alertSource.alert.length > 0) ? alertSource.alert : [alertSource];
-      this.setComments(alertSource);
-
-      if (fireToggleEditor) {
-        this.toggleNameEditor();
-      }
+      this.setAlert(alertSource);
     });
   }
 
-  setComments(alert) {
-    let alertComments = alert['comments'] ? alert['comments'] : [];
+  setAlert(alertSource) {
+    this.alertName = alertSource.name;
+    this.alertSource = alertSource;
+    this.alertSources = (alertSource.metron_alert && alertSource.metron_alert.length > 0) ? alertSource.metron_alert : [alertSource];
+    this.selectedAlertState = this.getAlertState(alertSource['alert_status']);
+    let alertComments = alertSource['comments'] || [];
     this.alertCommentsWrapper = alertComments.map(alertComment =>
-        new AlertCommentWrapper(alertComment, moment(new Date(alertComment.timestamp)).fromNow()));
+            new AlertCommentWrapper(alertComment, moment(new Date(alertComment.timestamp)).fromNow()));
   }
 
   getAlertState(alertStatus) {
@@ -122,103 +134,96 @@ export class AlertDetailsComponent implements OnInit {
   }
 
   ngOnInit() {
+    this.configSubscription = this.globalConfigService.get().subscribe((config: {}) => {
+      this.globalConfig = config;
+    });
+
     this.activatedRoute.params.subscribe(params => {
       this.alertId = params['guid'];
-      this.alertSourceType = params['sourceType'];
+      this.alertSourceType = params['source.type.field'];
       this.alertIndex = params['index'];
-      this.isMetaAlert = (this.alertIndex === META_ALERTS_INDEX && this.alertSourceType !== META_ALERTS_SENSOR_TYPE) ? true : false;
+      this.isMetaAlert = this.alertSourceType === META_ALERTS_SENSOR_TYPE;
       this.getData();
     });
   };
 
-  processOpen() {
-    let tAlert = new Alert();
-    tAlert.source = this.alertSource;
+  ngOnDestroy() {
+    this.configSubscription.unsubscribe();
+  }
 
-    this.selectedAlertState = AlertState.OPEN;
-    this.updateService.updateAlertState([tAlert], 'OPEN').subscribe(results => {
-      this.getData();
-    });
+  getScore(alertSource) {
+    return alertSource[this.globalConfig['threat.triage.score.field']];
+  }
+
+  processOpen() {
+    this.updateAlertState('OPEN');
   }
 
   processNew() {
-    let tAlert = new Alert();
-    tAlert.source = this.alertSource;
-
-    this.selectedAlertState = AlertState.NEW;
-    this.updateService.updateAlertState([tAlert], 'NEW').subscribe(results => {
-      this.getData();
-    });
+    this.updateAlertState('NEW');
   }
 
   processEscalate() {
+    this.updateAlertState('ESCALATE');
+
     let tAlert = new Alert();
     tAlert.source = this.alertSource;
-
-    this.selectedAlertState = AlertState.ESCALATE;
-    this.updateService.updateAlertState([tAlert], 'ESCALATE').subscribe(results => {
-      this.getData();
-    });
     this.alertsService.escalate([tAlert]).subscribe();
   }
 
   processDismiss() {
-    let tAlert = new Alert();
-    tAlert.source = this.alertSource;
-
-    this.selectedAlertState = AlertState.DISMISS;
-    this.updateService.updateAlertState([tAlert], 'DISMISS').subscribe(results => {
-      this.getData();
-    });
+    this.updateAlertState('DISMISS');
   }
 
   processResolve() {
+    this.updateAlertState('RESOLVE');
+  }
+
+  updateAlertState(state: string) {
     let tAlert = new Alert();
     tAlert.source = this.alertSource;
 
-    this.selectedAlertState = AlertState.RESOLVE;
-    this.updateService.updateAlertState([tAlert], 'RESOLVE').subscribe(results => {
-      this.getData();
+    this.updateService.updateAlertState([tAlert], state).subscribe(alertSource => {
+      this.setAlert(alertSource[0]);
     });
   }
 
   toggleNameEditor() {
     if (this.alertSources.length > 1) {
-      this.alertName = '';
       this.showEditor = !this.showEditor;
     }
+    setTimeout(() => {
+      if (this.showEditor && this.metaAlertNameInput) {
+        this.metaAlertNameInput.nativeElement.focus();
+      }
+    }, 100);
   }
 
   saveName() {
-    if (this.alertName.length > 0) {
+    if (!this.isSaveNameButtonDisabled()) {
       let patchRequest = new PatchRequest();
       patchRequest.guid = this.alertId;
       patchRequest.sensorType = 'metaalert';
-      patchRequest.index = META_ALERTS_INDEX;
       patchRequest.patch = [new Patch('add', '/name', this.alertName)];
 
-      this.updateService.patch(patchRequest).subscribe(rep => {
-        this.getData(true);
+      this.updateService.patch(patchRequest).subscribe(alertSource => {
+        this.setAlert(alertSource);
+        this.toggleNameEditor();
+      }, () => {
+        this.toggleNameEditor();
       });
     }
   }
 
   onAddComment() {
-    let alertComment = new AlertComment(this.alertCommentStr, this.authenticationService.getCurrentUserName(), new Date().getTime());
-    let tAlertComments = this.alertCommentsWrapper.map(alertsWrapper => alertsWrapper.alertComment);
-    tAlertComments.unshift(alertComment);
-    this.patchAlert(new Patch('add', '/comments', tAlertComments));
-  }
-
-  patchAlert(patch: Patch) {
-    let patchRequest = new PatchRequest();
-    patchRequest.guid = this.alertSource.guid;
-    patchRequest.index = this.alertIndex;
-    patchRequest.patch = [patch];
-    patchRequest.sensorType = this.alertSourceType;
-
-    this.updateService.patch(patchRequest).subscribe(() => {
-      this.getData();
+    let commentRequest = new CommentAddRemoveRequest();
+    commentRequest.guid = this.alertSource.guid;
+    commentRequest.comment = this.alertCommentStr;
+    commentRequest.username = this.authenticationService.getCurrentUserName();
+    commentRequest.timestamp = new Date().getTime();
+    commentRequest.sensorType = this.alertSourceType;
+    this.updateService.addComment(commentRequest).subscribe(alertSource => {
+      this.setAlert(alertSource);
     });
   }
 
@@ -230,13 +235,37 @@ export class AlertDetailsComponent implements OnInit {
       commentText += ' \'' + this.alertCommentsWrapper[index].alertComment.comment + '\'';
     }
 
-    this.metronDialogBox.showConfirmationMessage(commentText).subscribe(response => {
-      if (response) {
-        this.alertCommentsWrapper.splice(index, 1);
-        this.patchAlert(new Patch('add', '/comments', this.alertCommentsWrapper.map(alertsWrapper => alertsWrapper.alertComment)));
+    const confirmedSubscription = this.dialogService.launchDialog(commentText).subscribe(action => {
+      if (action === ConfirmationType.Confirmed) {
+        let commentRequest = new CommentAddRemoveRequest();
+        commentRequest.guid = this.alertSource.guid;
+        commentRequest.comment = this.alertCommentsWrapper[index].alertComment.comment;
+        commentRequest.username = this.alertCommentsWrapper[index].alertComment.username;
+        commentRequest.timestamp = this.alertCommentsWrapper[index].alertComment.timestamp;
+        commentRequest.sensorType = this.alertSourceType;
+        this.updateService.removeComment(commentRequest).subscribe(alertSource => {
+          this.setAlert(alertSource);
+        });
       }
+      confirmedSubscription.unsubscribe();
     });
   }
+
+  isSaveNameButtonDisabled() {
+    return !this.alertName || this.alertName.length === 0;
+  }
+
+  onSaveNameInputKeyPress(e: KeyboardEvent) {
+    if (e.code === 'Enter') {
+      this.saveName();
+    } else if (e.code === 'Escape') {
+      this.alertName = this.alertSource.name;
+      this.toggleNameEditor();
+    }
+  }
+
+  onSaveNameInputCancel() {
+    this.alertName = this.alertSource.name;
+    this.toggleNameEditor();
+  }
 }
-
-

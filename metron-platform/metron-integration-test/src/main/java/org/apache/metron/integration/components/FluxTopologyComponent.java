@@ -17,18 +17,6 @@
  */
 package org.apache.metron.integration.components;
 
-import java.io.File;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.lang.invoke.MethodHandles;
-import java.lang.reflect.InvocationTargetException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.util.Comparator;
-import java.util.Map;
-import java.util.Properties;
-import java.util.regex.Pattern;
 import org.apache.commons.io.FileUtils;
 import org.apache.curator.RetryPolicy;
 import org.apache.curator.framework.CuratorFramework;
@@ -45,10 +33,24 @@ import org.apache.storm.flux.parser.FluxParser;
 import org.apache.storm.generated.KillOptions;
 import org.apache.storm.generated.StormTopology;
 import org.apache.storm.thrift.TException;
+import org.apache.storm.thrift.protocol.TProtocolException;
 import org.apache.zookeeper.data.Stat;
-import org.junit.Assert;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import java.io.*;
+import java.lang.invoke.MethodHandles;
+import java.lang.reflect.InvocationTargetException;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.Comparator;
+import java.util.Map;
+import java.util.Properties;
+import java.util.regex.Pattern;
+
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 
 public class FluxTopologyComponent implements InMemoryComponent {
 
@@ -184,6 +186,14 @@ public class FluxTopologyComponent implements InMemoryComponent {
                       "If tests fail, we'll have to find a better way of killing them.", ise);
             }
         }
+        catch(RuntimeException re) {
+          if(re.getCause() instanceof TProtocolException) {
+            //let this go, it's some intermittent weirdness.
+          }
+          else {
+            throw re;
+          }
+        }
       }
       catch(Throwable t) {
         LOG.error(t.getMessage(), t);
@@ -240,7 +250,7 @@ public class FluxTopologyComponent implements InMemoryComponent {
     Config conf = FluxBuilder.buildConfig(topologyDef);
     ExecutionContext context = new ExecutionContext(topologyDef, conf);
     StormTopology topology = FluxBuilder.buildTopology(context);
-    Assert.assertNotNull(topology);
+    assertNotNull(topology);
     topology.validate();
     try {
       stormCluster.submitTopology(topologyName, conf, topology);
@@ -258,7 +268,7 @@ public class FluxTopologyComponent implements InMemoryComponent {
     File tmpFile = File.createTempFile(topologyName, "props");
     tmpFile.deleteOnExit();
     if (templateFile != null) {
-      try (FileWriter propWriter = new FileWriter(tmpFile)){
+      try (Writer propWriter = new OutputStreamWriter(new FileOutputStream(tmpFile), StandardCharsets.UTF_8)){
         String templateContents = FileUtils.readFileToString(templateFile);
         for(Map.Entry prop: properties.entrySet()) {
           String replacePattern = String.format("{{%s}}", prop.getKey());
@@ -269,7 +279,7 @@ public class FluxTopologyComponent implements InMemoryComponent {
         return FluxParser.parseFile(yamlFile.getAbsolutePath(), false, true, tmpFile.getAbsolutePath(), false);
       }
     } else {
-      try (FileWriter propWriter = new FileWriter(tmpFile)){
+      try (Writer propWriter = new OutputStreamWriter(new FileOutputStream(tmpFile), StandardCharsets.UTF_8)){
         properties.store(propWriter, topologyName + " properties");
         return FluxParser.parseFile(yamlFile.getAbsolutePath(), false, true, tmpFile.getAbsolutePath(), false);
       }

@@ -19,9 +19,21 @@ package org.apache.metron.common.configuration.enrichment.handler;
 
 import java.util.*;
 
+/**
+ * This is the core logic of how to configure enrichments.  The default type of enrichment configuration is a simple list
+ * however more complex enrichment adapters require more complex configuration (e.g. stellar).
+ */
 public class ConfigHandler {
   private Object config;
   private Configs type = Configs.LIST;
+
+  /**
+   * Constructs new instance.
+   *
+   * @param enrichment The enrichment being handled
+   * @param obj Map that contains the config and may contain the type of enrichment,
+   *     (e.g. Stellar). Otherwise, use it will use the uppercased enrichment as the type.
+   */
   public ConfigHandler(String enrichment, Map<String, Object> obj) {
     config = obj.get("config");
     if(obj.containsKey("type")) {

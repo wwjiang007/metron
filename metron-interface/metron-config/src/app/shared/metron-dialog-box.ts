@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {EventEmitter}     from '@angular/core';
+import { EventEmitter }     from '@angular/core';
 
 export class MetronDialogBox {
 
@@ -25,17 +25,17 @@ export class MetronDialogBox {
                   <div class="modal-dialog modal-sm" role="document">
                     <div class="modal-content">
                       <div class="modal-header">
-                        <button type="button" class="close" data-dismiss="modal" aria-label="Close"> 
-                            <span aria-hidden="true">&times;</span> 
-                        </button>
                         <span class="modal-title"><b>` + title + `</b></span>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                            <span aria-hidden="true">&times;</span>
+                        </button>
                       </div>
-                      <div class="modal-body">
+                      <div class="modal-body pt-0 pb-0">
                         <p>` +  message + `</p>
                       </div>
                       <div class="modal-footer">
                         <button type="button" class="btn btn-primary">OK</button>
-                        <button type="button" class="btn form-enable-disable-button" data-dismiss="modal">Cancel</button>
+                        <button type="button" class="btn form-enable-disable-button ml-1" data-dismiss="modal">Cancel</button>
                       </div>
                     </div>
                   </div>

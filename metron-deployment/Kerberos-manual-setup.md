@@ -30,6 +30,8 @@ This document provides instructions for kerberizing Metron's Vagrant-based devel
 * [Start Metron](#start-metron)
 * [Push Data](#push-data)
 * [More Information](#more-information)
+* [Elasticseach X-Pack](#X-Pack)
+* [TGT Ticket Renew](#tgt-ticket-renew)
 
 Setup
 -----
@@ -533,3 +535,149 @@ In order to correct this, you should:
 ### References
 
 * [https://github.com/apache/storm/blob/master/SECURITY.md](https://github.com/apache/storm/blob/master/SECURITY.md)
+
+X-Pack
+------
+
+1. Stop the random_access_indexing topology through the Storm UI or from the CLI, e.g.
+
+    ```
+    storm kill random_access_indexing
+    ```
+
+1. [Follow these instructions](https://www.elastic.co/guide/en/x-pack/5.6/installing-xpack.html) to enable the X-Pack with Elasticsearch and Kibana.  The X-Pack plugin will need installed on each of the nodes running Elasticsearch.
+
+1. You need to be sure to add the appropriate username and password for Elasticsearch and Kibana to enable external connections from Metron components. e.g. the following will create a user "transport_client_user" with password "changeme" and "superuser" credentials.
+
+    ```
+    sudo /usr/share/elasticsearch/bin/x-pack/users useradd transport_client_user -p changeme -r superuser
+    ```
+
+1. Once you've picked a password to connect to ES, you need to upload a 1-line file to HDFS with that password in it. Metron will use this file to securely read the password in order to connect to ES securely.
+
+    Here is an example using "changeme" as the password
+
+    ```
+    echo changeme > /tmp/xpack-password
+    sudo -u hdfs hdfs dfs -mkdir /apps/metron/elasticsearch/
+    sudo -u hdfs hdfs dfs -put /tmp/xpack-password /apps/metron/elasticsearch/
+    sudo -u hdfs hdfs dfs -chown metron:metron /apps/metron/elasticsearch/xpack-password
+    ```
+
+1. New settings have been added to configure the Elasticsearch client.
+
+    Modify the `es.client.settings` key in global.json
+
+    ```
+    $METRON_HOME/config/zookeeper/global.json ->
+
+      "es.client.settings" : {
+          "xpack.username" : "transport_client_user",
+          "xpack.password.file" : "/apps/metron/elasticsearch/xpack-password"
+      }
+    ```
+
+    Submit the update to Zookeeper
+
+    ```
+    $METRON_HOME/bin/zk_load_configs.sh -m PUSH -i $METRON_HOME/config/zookeeper/ -z $ZOOKEEPER
+    ```
+
+1. Now you can restart the Elasticsearch topology. Note, you should perform this step manually, as follows.
+
+    ```
+    $METRON_HOME/bin/start_elasticsearch_topology.sh
+    ```
+
+1. Restart the metron-rest service, and make sure the elasticsearch-xpack-shaded-5.6.14.jar is in the METRON_REST_CLASSPATH when the metron-rest starts.
+
+Once you've performed these steps, you should be able to start seeing data in your ES indexes.
+
+### X-Pack Common Problems
+
+#### java.io.FileNotFoundException: File /apps/metron/elasticsearch/xpack-password does not exist
+
+#### Problem
+
+The random access indexer topology fails with the following exception.  This exception might occur on only some of the Storm worker nodes.
+
+  ```
+  2018-07-02 10:24:08.267 o.a.s.util Thread-8-indexingBolt-executor[3 3] [ERROR] Async loop died!
+  java.lang.RuntimeException: java.lang.IllegalArgumentException: Unable to read XPack password file from HDFS location '/apps/metron/elasticsearch/xpack-password'
+  	at org.apache.metron.writer.bolt.BulkMessageWriterBolt.prepare(BulkMessageWriterBolt.java:201) ~[stormjar.jar:?]
+  	at org.apache.storm.daemon.executor$fn__10195$fn__10208.invoke(executor.clj:800) ~[storm-core-1.1.0.2.6.5.0-292.jar:1.1.0.2.6.5.0-292]
+  	at org.apache.storm.util$async_loop$fn__1221.invoke(util.clj:482) [storm-core-1.1.0.2.6.5.0-292.jar:1.1.0.2.6.5.0-292]
+  	at clojure.lang.AFn.run(AFn.java:22) [clojure-1.7.0.jar:?]
+  	at java.lang.Thread.run(Thread.java:748) [?:1.8.0_162]
+  Caused by: java.lang.IllegalArgumentException: Unable to read XPack password file from HDFS location '/apps/metron/elasticsearch/xpack-password'
+  	at org.apache.metron.elasticsearch.utils.ElasticsearchUtils.getPasswordFromFile(ElasticsearchUtils.java:201) ~[stormjar.jar:?]
+  	at org.apache.metron.elasticsearch.utils.ElasticsearchUtils.setXPackSecurityOrNone(ElasticsearchUtils.java:187) ~[stormjar.jar:?]
+  	at org.apache.metron.elasticsearch.utils.ElasticsearchUtils.getClient(ElasticsearchUtils.java:147) ~[stormjar.jar:?]
+  	at org.apache.metron.elasticsearch.writer.ElasticsearchWriter.init(ElasticsearchWriter.java:53) ~[stormjar.jar:?]
+  	at org.apache.metron.writer.bolt.BulkMessageWriterBolt.prepare(BulkMessageWriterBolt.java:199) ~[stormjar.jar:?]
+  	... 4 more
+  Caused by: java.io.FileNotFoundException: File /apps/metron/elasticsearch/xpack-password does not exist
+  	at org.apache.hadoop.fs.RawLocalFileSystem.deprecatedGetFileStatus(RawLocalFileSystem.java:606) ~[stormjar.jar:?]
+  	at org.apache.hadoop.fs.RawLocalFileSystem.getFileLinkStatusInternal(RawLocalFileSystem.java:819) ~[stormjar.jar:?]
+  	at org.apache.hadoop.fs.RawLocalFileSystem.getFileStatus(RawLocalFileSystem.java:596) ~[stormjar.jar:?]
+  	at org.apache.hadoop.fs.FilterFileSystem.getFileStatus(FilterFileSystem.java:421) ~[stormjar.jar:?]
+  	at org.apache.hadoop.fs.ChecksumFileSystem$ChecksumFSInputChecker.<init>(ChecksumFileSystem.java:140) ~[stormjar.jar:?]
+  	at org.apache.hadoop.fs.ChecksumFileSystem.open(ChecksumFileSystem.java:341) ~[stormjar.jar:?]
+  	at org.apache.hadoop.fs.FileSystem.open(FileSystem.java:767) ~[stormjar.jar:?]
+  	at org.apache.metron.common.utils.HDFSUtils.readFile(HDFSUtils.java:55) ~[stormjar.jar:?]
+  	at org.apache.metron.common.utils.HDFSUtils.readFile(HDFSUtils.java:40) ~[stormjar.jar:?]
+  	at org.apache.metron.elasticsearch.utils.ElasticsearchUtils.getPasswordFromFile(ElasticsearchUtils.java:198) ~[stormjar.jar:?]
+  	at org.apache.metron.elasticsearch.utils.ElasticsearchUtils.setXPackSecurityOrNone(ElasticsearchUtils.java:187) ~[stormjar.jar:?]
+  	at org.apache.metron.elasticsearch.utils.ElasticsearchUtils.getClient(ElasticsearchUtils.java:147) ~[stormjar.jar:?]
+  	at org.apache.metron.elasticsearch.writer.ElasticsearchWriter.init(ElasticsearchWriter.java:53) ~[stormjar.jar:?]
+  	at org.apache.metron.writer.bolt.BulkMessageWriterBolt.prepare(BulkMessageWriterBolt.java:199) ~[stormjar.jar:?]
+  	... 4 more
+  ```
+
+#### Solution
+
+This can occur when an HDFS Client is not installed on the Storm worker nodes.  This might occur on any Storm worker node where an HDFS Client is not installed.  Installing the HDFS Client on all Storm worker nodes should resolve the problem.
+
+## TGT Ticket Renew
+
+Apache Storm doesn't handle automatic TGT ticket renewal for their running topologies. Instead, it is left up to the operations team deploying the Storm topologies
+in a Kerberized environment to manage this themselves. We've included a Python script that can be setup with a cron process to automatically manage the renewal
+process for you. The script should be run on an interval that is shorter than the renew_lifetime configured for your TGT.
+
+### Setup Instructions
+
+Run the following on a node with a Storm and Metron client installed. We need python 2.7 via virtualenv for this to work correctly.
+
+```
+# run yum commands as root
+for item in epel-release centos-release-scl "@Development tools" python27 python27-scldevel python27-python-virtualenv libselinux-python; do yum install -y $item; done
+sudo yum install -y gcc krb5-devel python-devel
+sudo yum install -y libffi libffi-devel
+sudo yum install -y python-cffi
+sudo yum install -y openssl-devel
+# setup python with metron user
+su - metron
+export PYTHON27_HOME=/opt/rh/python27/root
+export LD_LIBRARY_PATH="/opt/rh/python27/root/usr/lib64"
+mkdir project_dir
+cd project_dir
+${PYTHON27_HOME}/usr/bin/virtualenv venv
+source venv/bin/activate
+pip install --upgrade setuptools==18.5
+pip install requests-kerberos
+```
+
+The script `$METRON_HOME/bin/tgt_renew.py` takes two arguments:
+
+* arg1 = host:port for Storm UI server
+* arg2 = topology owner - typically "metron" for a kerberized cluster with metron topologies
+
+Execute it like the following example:
+
+```
+# run as the metron user
+su - metron
+python $METRON_HOME/bin/tgt_renew.py node1:8744 metron
+```
+
+

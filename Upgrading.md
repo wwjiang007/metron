@@ -19,6 +19,83 @@ limitations under the License.
 This document constitutes a per-version listing of changes of
 configuration which are non-backwards compatible.
 
+
+## 0.7.2 to 0.7.3
+
+### [METRON-2239: Metron Automated backup and restore](https://issues.apache.org/jira/browse/METRON-2239)
+An upgrade helper script has been added to `$METRON_HOME/bin/upgrade_helper.sh`. This script will assist in backing up and restoring Ambari configuration and Metron configuration stored in Zookeeper. You can see more details at [Metron Upgrade Helper](metron-platform/metron-common#metron-upgrade-helper) and [Upgrade Steps](Upgrade_steps.md).
+
+### [METRON-2321: Remove Legacy AWS Deployment Path](https://issues.apache.org/jira/browse/METRON-2321)
+The automated Amazon AWS deployment mechanism (previously located at `metron-deployment/amazon-ec2`) has been removed.  It is not the preferred installation path for deploying to AWS. Using Ambari and the Metron MPack is the preferred installation path. To deploy Metron to AWS, provision EC2 nodes, install Ambari, install the Metron MPack, then use Ambari to deploy Metron.
+
+### [METRON-614: Eliminate use of the default Charset](https://issues.apache.org/jira/browse/METRON-614)
+The use of the system default Charset is being dropped throughout the code in favor or explicit Charsets, by default UTF-8. As part of this change, individual parsers may now set a configuration property `readCharset` to allow each parser to set the Charset used by its data.  This has potential upgrade implications:
+
+* If your system's default Charset and the input data is not UTF-8, you will need to configure each parser to use the appropriate Charset.
+* If you've directly implemented the `MessageParser` interface (instead of extending `BasicParser`) and you need to handle non-UTF-8 Charsets, you should do reading and handling of this configuration in your implementation by overriding `getReadCharset()`.
+
+## 0.7.1 to 0.7.2
+
+### [METRON-2164: Remove the Split-Join Enrichment Topology](https://issues.apache.org/jira/browse/METRON-2164)
+The Split-Join Enrichment topology has been deprecated since November 2018. Metron has defaulted to using the Unified Enrichment topology since that time. All users of the Split-Join Enrichment topology should migrate to the Unified Enrichment topology. Both topologies provide equivalent functionality.
+
+## 0.7.0 to 0.7.1
+
+### [METRON-2100: Update developer documentation for full dev management UI parser aggregation feature gap](https://issues.apache.org/jira/browse/METRON-2100)
+The original full_dev environment change was actually introduced in Metron 0.7.0. This Jira addresses missing user documentation for the Management UI feature gap for parser aggregation. See [Parser Aggregation Feature](metron-deployment#parser-aggregation-feature) for more details on how to work with and configure parsers with this feature change enabled in full_dev.
+
+### [METRON-2053: Refactor metron-enrichment to decouple Storm dependencies](https://issues.apache.org/jira/browse/METRON-2053)
+`org.apache.metron.enrichment.writer.SimpleHbaseEnrichmentWriter` has had its packaged changed to `org.apache.metron.writer.hbase.SimpleHbaseEnrichmentWriter`. It has also been moved from the `metron-platform/metron-enrichment` module to a more appropriate home in `metron-platform/metron-writer`.
+
+### [METRON-1929: Build GET_ASN Stellar function](https://issues.apache.org/jira/browse/METRON-1929)
+The script for `geo_enrichment_load.sh` has been renamed, and now is `maxmind_enrichment_load.sh`. A couple changes should happen for users who are upgrading.
+
+* The MaxMind GeoLite2 ASN database should be loaded onto HDFS at /apps/metron/asn/default/GeoLite2-ASN.tar.gz OR the global configuration property `asn.hdfs.file` can be set to point to a custom HDFS location.
+* Any custom scripts or tasks that use this script should be updated. In addition, this updated script also retrieves the GeoLite2 ASN database.  The `-ra` flag can be used to provide a custom location for this database if offline install is needed. Otherwise, it will retrieve the latest from MaxMind.
+
+
+## 0.6.0 to 0.7.0
+
+### [METRON-1834: Migrate Elasticsearch from TransportClient to new Java REST API](https://issues.apache.org/jira/browse/METRON-1834)
+The Elasticsearch Java client has now been migrated from TransportClient to the new Java REST client. The motivation for this change
+is that TransportClient will be deprecated in Elasticsearch 7.0 and removed entirely in 8.0. See [ES Java API ](https://www.elastic.co/guide/en/elasticsearch/client/java-api/5.6/client.html) for more details.
+The primary client-facing change for upgrades will be the new properties for configuring the new client. An explanation of the new properties
+as well as a mapping from the old properties to the new can be found in [metron-elasticsearch](metron-platform/metron-elasticsearch/README.md#Properties) under `es.client.settings`.
+
+
+### [METRON-1855: Make unified enrichment topology the default and deprecate split-join](https://issues.apache.org/jira/browse/METRON-1855)
+The unified enrichment topology will be the new default in this release,
+and the split-join enrichment topology is now considered deprecated.
+If you wish to keep the deprecated split-join enrichment topology,
+you will need to make the following changes:
+
+* In Ambari > Metron > Config > Enrichment set the enrichment_topology setting to "Split-Join"
+* If running `start_enrichment_topology.sh` manually, pass in the parameters to start the Split-Join topology as follows
+
+    ```
+    $METRON_HOME/bin/start_enrichment_topology.sh --remote $METRON_HOME/flux/enrichment/remote-splitjoin.yaml --filter $METRON_HOME/config/enrichment-splitjoin.properties
+    ```
+
+* Restart the enrichment topology
+
+## 0.4.2 to 0.5.0
+
+### [METRON-941: native PaloAlto parser corrupts message when having a comma in the payload](https://issues.apache.org/jira/browse/METRON-941)
+While modifying the PaloAlto log parser to support logs from newer
+PAN-OS version and to not break when a message payload contains a
+comma, some field names were changed to extend the coverage, fix some
+duplicate names and change some field names to the Metron standard
+message format.
+
+Installations making use of this parser should check, if the resulting
+messages still meet their expectations and adjust downstream configurations
+(i.e. ElasticSearch template) accordingly.
+
+*Note:* Previously, the samples for the test contained a full syslog line
+(including syslog header). This did - and will continue to - create a
+broken "domain" field in the parsed message. It is recommended to only feed
+the syslog message part to the parser for now.
+
 ## 0.4.1 to 0.4.2
 
 ### [METRON-1277: STELLAR Add Match functionality to language](https://issues.apache.org/jira/browse/METRON-1277)

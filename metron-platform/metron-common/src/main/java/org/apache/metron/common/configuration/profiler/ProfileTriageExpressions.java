@@ -17,9 +17,12 @@
  */
 package org.apache.metron.common.configuration.profiler;
 
+import com.fasterxml.jackson.annotation.JsonAnyGetter;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonCreator;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -27,16 +30,16 @@ import java.util.Map;
  * A set of Stellar expressions that are executed to produce a single
  * measurement that can be interrogated by the threat triage process.
  *
- * The result of evaluating each expression are made available, keyed
+ * <p>The result of evaluating each expression are made available, keyed
  * by the given name, to the threat triage process.
  */
-public class ProfileTriageExpressions {
+public class ProfileTriageExpressions implements Serializable {
 
   /**
    * A set of named Stellar expressions.  The name of the expression
    * serves as the key and the value is the expression itself.
    *
-   * Evaluating the expression(s) must result in a basic data type
+   * <p>Evaluating the expression(s) must result in a basic data type
    * or map of basic data types that can be serialized.
    */
   @JsonIgnore
@@ -61,8 +64,14 @@ public class ProfileTriageExpressions {
     return expressions.get(name);
   }
 
+  @JsonAnyGetter
   public Map<String, String> getExpressions() {
     return expressions;
+  }
+
+  @JsonAnySetter
+  public void setExpressions(Map<String, String> expressions) {
+    this.expressions = expressions;
   }
 
   @Override

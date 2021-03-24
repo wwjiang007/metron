@@ -17,13 +17,13 @@
  */
 package org.apache.metron.rest.controller;
 
-import org.junit.Before;
-import org.junit.Test;
-import org.junit.runner.RunWith;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.junit4.SpringRunner;
+import org.springframework.test.context.junit.jupiter.SpringExtension;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
@@ -35,31 +35,35 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@RunWith(SpringRunner.class)
-@SpringBootTest(webEnvironment= SpringBootTest.WebEnvironment.RANDOM_PORT)
+@ExtendWith(SpringExtension.class)
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @ActiveProfiles(TEST_PROFILE)
 public class UserControllerIntegrationTest {
 
-    private MockMvc mockMvc;
+  private MockMvc mockMvc;
 
-    @Autowired
-    private WebApplicationContext wac;
+  @Autowired
+  private WebApplicationContext wac;
 
-    private String user = "user";
-    private String password = "password";
+  private String userUrl = "/api/v1/user";
+  private String user1 = "user1";
+  private String password = "password";
 
-    @Before
-    public void setup() throws Exception {
-        this.mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).apply(springSecurity()).build();
-    }
+  @BeforeEach
+  public void setup() {
+    this.mockMvc = MockMvcBuilders.webAppContextSetup(this.wac).apply(springSecurity()).build();
+  }
 
-    @Test
-    public void test() throws Exception {
-        this.mockMvc.perform(get("/api/v1/user"))
-                .andExpect(status().isUnauthorized());
+  @Test
+  public void testSecurity() throws Exception {
+    this.mockMvc.perform(get(userUrl))
+            .andExpect(status().isUnauthorized());
+  }
 
-        this.mockMvc.perform(get("/api/v1/user").with(httpBasic(user,password)))
-                .andExpect(status().isOk())
-                .andExpect(content().string(user));
-    }
+  @Test
+  public void testGetUser() throws Exception {
+    this.mockMvc.perform(get(userUrl).with(httpBasic(user1, password)))
+            .andExpect(status().isOk())
+            .andExpect(content().string(user1));
+  }
 }

@@ -20,8 +20,6 @@ package org.apache.metron.common.configuration.enrichment.threatintel;
 
 import com.google.common.base.Joiner;
 import org.apache.metron.common.aggregator.Aggregators;
-import org.apache.metron.stellar.common.StellarPredicateProcessor;
-import org.apache.metron.stellar.common.StellarProcessor;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -40,29 +38,25 @@ public class ThreatTriageConfig {
     return riskLevelRules;
   }
 
+  /**
+   * Given a list of @{link RiskLevelRule}, builds up the necessary context to evaluate them.
+   * This includes validation of the Stellar expression contained.
+   *
+   * @param riskLevelRules The list of {@link RiskLevelRule}s to be evaluated
+   */
   public void setRiskLevelRules(List<RiskLevelRule> riskLevelRules) {
     List<RiskLevelRule> rules = new ArrayList<>();
     Set<String> ruleIndex = new HashSet<>();
-    StellarPredicateProcessor predicateProcessor = new StellarPredicateProcessor();
-    StellarProcessor processor = new StellarProcessor();
 
     for(RiskLevelRule rule : riskLevelRules) {
-      if(rule.getRule() == null || rule.getScore() == null) {
+      if(rule.getRule() == null || rule.getScoreExpression() == null) {
         throw new IllegalStateException("Risk level rules must contain both a rule and a score.");
       }
       if(ruleIndex.contains(rule.getRule())) {
         continue;
-      }
-      else {
+      } else {
         ruleIndex.add(rule.getRule());
       }
-
-      // validate the fields which are expected to be valid Stellar expressions
-      predicateProcessor.validate(rule.getRule());
-      if(rule.getReason() != null) {
-        processor.validate(rule.getReason());
-      }
-
       rules.add(rule);
     }
     this.riskLevelRules = rules;
@@ -72,6 +66,11 @@ public class ThreatTriageConfig {
     return aggregator;
   }
 
+  /**
+   * Sets an aggregator by name from {@link Aggregators}.
+   *
+   * @param aggregator The aggregator name to grab
+   */
   public void setAggregator(String aggregator) {
     try {
       this.aggregator = Aggregators.valueOf(aggregator);

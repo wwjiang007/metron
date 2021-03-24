@@ -33,7 +33,7 @@ public class IPValidation implements FieldValidation, Predicate<List<Object>> {
           , description = "Determine if an string is an IP or not."
           , params = {
               "ip - An object which we wish to test is an ip"
-             ,"type (optional) - Object of string or collection type (e.g. list) one of IPV4 or IPV6 or both.  The default is IPV4."
+             ,"type (optional) - Object of string or collection type (e.g. list) one of IPV4 or IPV6 or both. The default is both IPV4 and IPV6."
                      }
           , returns = "True if the string is an IP and false otherwise.")
   public static class IS_IP extends Predicate2StellarFunction {
@@ -92,7 +92,7 @@ public class IPValidation implements FieldValidation, Predicate<List<Object>> {
    *
    * @param strings the input argument
    * @return {@code true} if the input argument matches the predicate,
-   * otherwise {@code false}
+   *     otherwise {@code false}
    */
   @Override
   public boolean test(List<Object> strings) {

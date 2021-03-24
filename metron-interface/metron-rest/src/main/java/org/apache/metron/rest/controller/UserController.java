@@ -19,6 +19,11 @@ package org.apache.metron.rest.controller;
 
 import io.swagger.annotations.ApiOperation;
 import io.swagger.annotations.ApiResponse;
+import java.util.List;
+import java.util.stream.Collectors;
+import org.springframework.security.access.annotation.Secured;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,12 +31,21 @@ import org.springframework.web.bind.annotation.RestController;
 import java.security.Principal;
 
 @RestController
+@RequestMapping("/api/v1/user")
 public class UserController {
 
   @ApiOperation(value = "Retrieves the current user")
   @ApiResponse(message = "Current user", code = 200)
-  @RequestMapping(value = "/api/v1/user", method = RequestMethod.GET)
+  @RequestMapping(method = RequestMethod.GET)
     public String user(Principal user) {
         return user.getName();
     }
+
+  @Secured("IS_AUTHENTICATED_FULLY")
+  @RequestMapping(path = "/whoami/roles", method = RequestMethod.GET)
+  public List<String> user() {
+    UserDetails userDetails = (UserDetails) SecurityContextHolder.getContext().
+        getAuthentication().getPrincipal();
+    return userDetails.getAuthorities().stream().map(ga -> ga.getAuthority()).collect(Collectors.toList());
+  }
 }

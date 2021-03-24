@@ -17,26 +17,25 @@
  */
 package org.apache.metron.rest.service.impl;
 
+import org.apache.metron.common.configuration.SensorParserGroup;
 import org.apache.metron.rest.model.TopologyResponse;
 import org.apache.metron.rest.model.TopologyStatus;
 import org.apache.metron.rest.model.TopologyStatusCode;
 import org.apache.metron.rest.model.TopologySummary;
+import org.apache.metron.rest.service.SensorParserGroupService;
 import org.apache.metron.rest.service.StormStatusService;
-import org.junit.Before;
-import org.junit.Rule;
-import org.junit.Test;
-import org.junit.rules.ExpectedException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.core.env.Environment;
 import org.springframework.web.client.RestTemplate;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 
-import static org.apache.metron.rest.MetronRestConstants.STORM_UI_SPRING_PROPERTY;
-import static org.apache.metron.rest.MetronRestConstants.TOPOLOGY_SUMMARY_URL;
-import static org.apache.metron.rest.MetronRestConstants.TOPOLOGY_URL;
-import static org.junit.Assert.assertEquals;
+import static org.apache.metron.rest.MetronRestConstants.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -46,18 +45,18 @@ public class StormStatusServiceImplTest {
   private static final String HTTP_STORM_UI = "http://storm_ui";
   private static final String HTTPS_STORM_UI = "https://storm_ui";
   private static final String NO_PROTOCOL_STORM_UI = "storm_ui";
-  @Rule
-  public final ExpectedException exception = ExpectedException.none();
 
   Environment environment;
   RestTemplate restTemplate;
   StormStatusService stormStatusService;
+  SensorParserGroupService sensorParserGroupService;
 
-  @Before
+  @BeforeEach
   public void setUp() throws Exception {
     environment = mock(Environment.class);
     restTemplate = mock(RestTemplate.class);
-    stormStatusService = new StormStatusServiceImpl(environment, restTemplate);
+    sensorParserGroupService = mock(SensorParserGroupService.class);
+    stormStatusService = new StormStatusServiceImpl(environment, restTemplate, sensorParserGroupService);
   }
 
   @Test
@@ -129,7 +128,37 @@ public class StormStatusServiceImplTest {
   }
 
   @Test
-  public void getAllTopologyStatusShouldReturnAllTopologyStatus() {
+  public void getTopologyStatusByGroupShouldReturnTopologyStatus() throws Exception {
+    final TopologyStatus topologyStatus = new TopologyStatus();
+    topologyStatus.setStatus(TopologyStatusCode.STARTED);
+    topologyStatus.setName("bro__snort");
+    topologyStatus.setId("bro_snort_id");
+    final TopologySummary topologySummary = new TopologySummary();
+    topologySummary.setTopologies(new TopologyStatus[]{topologyStatus});
+
+    SensorParserGroup group = new SensorParserGroup();
+    group.setName("group");
+    group.setSensors(new HashSet<String>() {{
+      add("bro");
+      add("snort");
+    }});
+    when(sensorParserGroupService.findOne("group")).thenReturn(group);
+    when(environment.getProperty(STORM_UI_SPRING_PROPERTY)).thenReturn(HTTP_STORM_UI);
+    when(restTemplate.getForObject(HTTP_STORM_UI + TOPOLOGY_SUMMARY_URL, TopologySummary.class)).thenReturn(topologySummary);
+    when(restTemplate.getForObject(HTTP_STORM_UI + TOPOLOGY_URL + "/bro_snort_id", TopologyStatus.class)).thenReturn(topologyStatus);
+
+    TopologyStatus expected = new TopologyStatus();
+    expected.setStatus(TopologyStatusCode.STARTED);
+    expected.setName("bro__snort");
+    expected.setId("bro_snort_id");
+
+    TopologyStatus actual = stormStatusService.getTopologyStatus("group");
+    assertEquals(expected, actual);
+    assertEquals(expected.hashCode(), actual.hashCode());
+  }
+
+  @Test
+  public void getAllTopologyStatusShouldReturnAllTopologyStatus() throws Exception {
     final TopologyStatus topologyStatus = new TopologyStatus();
     topologyStatus.setStatus(TopologyStatusCode.STARTED);
     topologyStatus.setName("bro");
@@ -151,7 +180,7 @@ public class StormStatusServiceImplTest {
 
 
   @Test
-  public void activateTopologyShouldReturnActiveTopologyResponse() {
+  public void activateTopologyShouldReturnActiveTopologyResponse() throws Exception {
     final TopologyStatus topologyStatus = new TopologyStatus();
     topologyStatus.setName("bro");
     topologyStatus.setId("bro_id");
@@ -169,7 +198,7 @@ public class StormStatusServiceImplTest {
   }
 
   @Test
-  public void activateTopologyShouldReturnErrorTopologyResponse() {
+  public void activateTopologyShouldReturnErrorTopologyResponse() throws Exception {
     final TopologyStatus topologyStatus = new TopologyStatus();
     topologyStatus.setName("bro");
     topologyStatus.setId("bro_id");
@@ -187,7 +216,7 @@ public class StormStatusServiceImplTest {
   }
 
   @Test
-  public void activateTopologyShouldReturnTopologyNotFoundTopologyResponse() {
+  public void activateTopologyShouldReturnTopologyNotFoundTopologyResponse() throws Exception {
     when(environment.getProperty(STORM_UI_SPRING_PROPERTY)).thenReturn(HTTP_STORM_UI);
     when(restTemplate.getForObject(HTTP_STORM_UI + TOPOLOGY_SUMMARY_URL, TopologySummary.class)).thenReturn(new TopologySummary());
 
@@ -197,7 +226,7 @@ public class StormStatusServiceImplTest {
   }
 
   @Test
-  public void deactivateTopologyShouldReturnActiveTopologyResponse() {
+  public void deactivateTopologyShouldReturnActiveTopologyResponse() throws Exception {
     final TopologyStatus topologyStatus = new TopologyStatus();
     topologyStatus.setName("bro");
     topologyStatus.setId("bro_id");
@@ -215,7 +244,7 @@ public class StormStatusServiceImplTest {
   }
 
   @Test
-  public void deactivateTopologyShouldReturnErrorTopologyResponse() {
+  public void deactivateTopologyShouldReturnErrorTopologyResponse() throws Exception {
     final TopologyStatus topologyStatus = new TopologyStatus();
     topologyStatus.setName("bro");
     topologyStatus.setId("bro_id");
@@ -233,7 +262,7 @@ public class StormStatusServiceImplTest {
   }
 
   @Test
-  public void deactivateTopologyShouldReturnTopologyNotFoundTopologyResponse() {
+  public void deactivateTopologyShouldReturnTopologyNotFoundTopologyResponse() throws Exception {
     when(environment.getProperty(STORM_UI_SPRING_PROPERTY)).thenReturn(HTTP_STORM_UI);
     when(restTemplate.getForObject(HTTP_STORM_UI + TOPOLOGY_SUMMARY_URL, TopologySummary.class)).thenReturn(new TopologySummary());
 

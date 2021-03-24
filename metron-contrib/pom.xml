@@ -21,15 +21,15 @@
     <parent>
         <groupId>org.apache.metron</groupId>
         <artifactId>Metron</artifactId>
-        <version>0.4.3</version>
+        <version>0.7.2</version>
     </parent>
     <description>Contributed Tooling for Metron</description>
     <url>https://metron.apache.org/</url>
     <scm>
-        <connection>scm:git:https://git-wip-us.apache.org/repos/asf/metron.git</connection>
-        <developerConnection>scm:git:https://git-wip-us.apache.org/repos/asf/metron.git</developerConnection>
+        <connection>scm:git:https://gitbox.apache.org/repos/asf/metron.git</connection>
+        <developerConnection>scm:git:https://gitbox.apache.org/repos/asf/metron.git</developerConnection>
         <tag>HEAD</tag>
-        <url>https://git-wip-us.apache.org/repos/asf/metron</url>
+        <url>https://gitbox.apache.org/repos/asf/metron</url>
     </scm>
     <licenses>
         <license>
@@ -40,5 +40,26 @@
     </licenses>
     <modules>
         <module>metron-docker</module>
+        <module>metron-performance</module>
     </modules>
+    <dependencies>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>${global_junit_jupiter_version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>${global_junit_jupiter_version}</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+			<groupId>org.adrianwalker</groupId>
+			<artifactId>multiline-string</artifactId>
+			<version>0.1.2</version>
+			<scope>test</scope>
+		</dependency>
+    </dependencies>
 </project>

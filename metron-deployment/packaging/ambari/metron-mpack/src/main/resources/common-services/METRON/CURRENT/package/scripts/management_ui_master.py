@@ -17,15 +17,13 @@ limitations under the License.
 
 """
 
+from management_ui_commands import ManagementUICommands
+from resource_management.core.exceptions import Fail
 from resource_management.core.resources.system import Directory
 from resource_management.core.resources.system import File
 from resource_management.core.source import Template
 from resource_management.libraries.functions.format import format
 from resource_management.libraries.script import Script
-from resource_management.core.resources.system import Execute
-from resource_management.core.logger import Logger
-
-from management_ui_commands import ManagementUICommands
 
 
 class ManagementUIMaster(Script):
@@ -49,12 +47,21 @@ class ManagementUIMaster(Script):
              group=params.metron_group
              )
 
+        File(format("{metron_management_ui_path}/assets/app-config.json"),
+             content=Template("management-ui-app-config.json.j2"),
+             owner=params.metron_user,
+             group=params.metron_group
+             )
+
         Directory('/var/run/metron',
                   create_parents=False,
                   mode=0755,
                   owner=params.metron_user,
                   group=params.metron_group
                   )
+
+        if params.metron_knox_enabled and not params.metron_ldap_enabled:
+            raise Fail("Enabling Metron with Knox requires LDAP authentication.  Please set 'LDAP Enabled' to true in the Metron Security tab.")
 
     def start(self, env, upgrade_type=None):
         from params import params

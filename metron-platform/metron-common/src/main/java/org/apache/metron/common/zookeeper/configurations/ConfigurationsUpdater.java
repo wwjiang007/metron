@@ -17,11 +17,12 @@
  */
 package org.apache.metron.common.zookeeper.configurations;
 
+import java.nio.charset.StandardCharsets;
 import org.apache.curator.framework.CuratorFramework;
 import org.apache.metron.common.configuration.ConfigurationType;
 import org.apache.metron.common.configuration.Configurations;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import org.apache.metron.common.utils.LazyLogger;
+import org.apache.metron.common.utils.LazyLoggerFactory;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -36,12 +37,12 @@ import java.util.function.Supplier;
  * @param <T> the Type of Configuration
  */
 public abstract class ConfigurationsUpdater<T extends Configurations> implements Serializable {
-  protected static final Logger LOG =  LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+  protected static final LazyLogger LOG =  LazyLoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
   private Reloadable reloadable;
   private Supplier<T> configSupplier;
 
   /**
-   * Construct a ConfigurationsUpdater
+   * Construct a ConfigurationsUpdater.
    * @param reloadable A callback which gets called whenever a reload happens
    * @param configSupplier A Supplier which creates the Configurations object.
    */
@@ -65,11 +66,13 @@ public abstract class ConfigurationsUpdater<T extends Configurations> implements
     if (data.length != 0) {
       String name = path.substring(path.lastIndexOf("/") + 1);
       if (path.startsWith(getType().getZookeeperRoot())) {
-        LOG.debug("Updating the {} config: {} -> {}", getType().name(), name, new String(data == null?"".getBytes():data));
+        LOG.debug("Updating the {} config: {} -> {}", () -> getType().name(), () -> name,
+                () -> new String(data == null?"".getBytes(StandardCharsets.UTF_8):data, StandardCharsets.UTF_8));
         update(name, data);
         reloadCallback(name, getType());
       } else if (ConfigurationType.GLOBAL.getZookeeperRoot().equals(path)) {
-        LOG.debug("Updating the global config: {}", new String(data == null?"".getBytes():data));
+        LOG.debug("Updating the global config: {}",
+                () -> new String(data == null?"".getBytes(StandardCharsets.UTF_8):data, StandardCharsets.UTF_8));
         getConfigurations().updateGlobalConfig(data);
         reloadCallback(name, ConfigurationType.GLOBAL);
       }
@@ -118,26 +121,26 @@ public abstract class ConfigurationsUpdater<T extends Configurations> implements
    * this is ONLY called on deletes to path to the zookeeper nodes which correspond
    * to your configurations type (rather than all configurations type).
    * @param name the path
-   * @throws IOException when update is unable to happen
    */
   public abstract void delete(String name);
 
   /**
+   * Gets the class for the {@link Configurations} type.
    *
-   * @return The Class for the Configurations type.
+   * @return The class
    */
   public abstract Class<T> getConfigurationClass();
 
   /**
    * This pulls the configuration from zookeeper and updates the cache.  It represents the initial state.
    * Force update is called when the zookeeper cache is initialized to ensure that the caches are updated.
-   * @param client
+   * @param client The ZK client interacting with configuration
    */
   public abstract void forceUpdate(CuratorFramework client);
 
   /**
-   * Create an empty Configurations object of type T.
-   * @return
+   * Create an empty {@link Configurations} object of type T.
+   * @return configurations
    */
   public abstract T defaultConfigurations();
 

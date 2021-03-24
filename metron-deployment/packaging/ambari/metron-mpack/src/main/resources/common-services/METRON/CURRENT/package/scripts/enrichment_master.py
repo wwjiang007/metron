@@ -14,17 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import metron_security
+import metron_service
+from enrichment_commands import EnrichmentCommands
+from metron_security import storm_security_setup
 from resource_management.core.exceptions import ComponentIsNotRunning
+from resource_management.core.logger import Logger
 from resource_management.core.resources.system import File
 from resource_management.core.source import Template
 from resource_management.libraries.functions.format import format
 from resource_management.libraries.script import Script
-from resource_management.core.logger import Logger
 
-from enrichment_commands import EnrichmentCommands
-from metron_security import storm_security_setup
-import metron_service
-import metron_security
 
 class Enrichment(Script):
 
@@ -41,12 +41,11 @@ class Enrichment(Script):
         File(format("{metron_config_path}/enrichment.properties"),
              content=Template("enrichment.properties.j2"),
              owner=params.metron_user,
-             group=params.metron_group
-             )
+             group=params.metron_group)
 
         if not metron_service.is_zk_configured(params):
-          metron_service.init_zk_config(params)
-          metron_service.set_zk_configured(params)
+            metron_service.init_zk_config(params)
+            metron_service.set_zk_configured(params)
         metron_service.refresh_configs(params)
 
         Logger.info("Calling security setup")
@@ -70,10 +69,12 @@ class Enrichment(Script):
             commands.init_kafka_acls()
         if not commands.is_hbase_configured():
             commands.create_hbase_tables()
+        if not commands.is_hbase_coprocessor_configured():
+            commands.load_enrichment_coprocessor()
         if params.security_enabled and not commands.is_hbase_acl_configured():
             commands.set_hbase_acls()
-        if not commands.is_geo_configured():
-            commands.init_geo()
+        if not commands.is_maxmind_configured():
+            commands.init_maxmind()
 
         commands.start_enrichment_topology(env)
 

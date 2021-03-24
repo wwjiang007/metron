@@ -15,17 +15,78 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { TestBed, async } from '@angular/core/testing';
+import { TestBed, async, ComponentFixture } from '@angular/core/testing';
 
 import { AppComponent } from './app.component';
+import { Component } from '@angular/core';
+import { AuthenticationService } from './service/authentication.service';
+import { of } from 'rxjs';
+import { DialogService } from './service/dialog.service';
+import { MetronDialogComponent } from './shared/metron-dialog/metron-dialog.component';
+import { RouterTestingModule } from '@angular/router/testing';
+import {
+  NzLayoutModule,
+  NzMenuModule,
+  NgZorroAntdModule,
+  NZ_ICONS
+} from 'ng-zorro-antd';
+import {
+  ToolOutline,
+  WarningOutline,
+  FileOutline
+} from '@ant-design/icons-angular/icons';
+import { IconDefinition } from '@ant-design/icons-angular';
+import { BrowserAnimationsModule } from '@angular/platform-browser/animations';
+import {AppConfigService} from "./service/app-config.service";
+
+const icons: IconDefinition[] = [ ToolOutline, WarningOutline, FileOutline ];
+
+@Component({ selector: 'router-outlet', template: '' })
+class RouterOutletStubComponent {}
+
+class FakeAppConfigService {
+
+  getManagementUIHost() {
+    return 'localhost';
+  }
+
+  getManagementUIPort() {
+    return '4200'
+  }
+}
 
 describe('AppComponent', () => {
+  let component: AppComponent;
+  let fixture: ComponentFixture<AppComponent>;
+
   beforeEach(async(() => {
     TestBed.configureTestingModule({
-      declarations: [
-        AppComponent
+      providers: [
+        DialogService,
+        { provide: AuthenticationService, useValue: { onLoginEvent: of(true) } },
+        { provide: AppConfigService, useClass: FakeAppConfigService },
+        { provide: NZ_ICONS, useValue: icons }
       ],
+      declarations: [
+        AppComponent,
+        MetronDialogComponent,
+        RouterOutletStubComponent,
+      ],
+      imports: [
+        NzLayoutModule,
+        NzMenuModule,
+        BrowserAnimationsModule,
+        NgZorroAntdModule, RouterTestingModule ]
     }).compileComponents();
   }));
 
+  beforeEach(() => {
+    fixture = TestBed.createComponent(AppComponent);
+    component = fixture.componentInstance;
+    fixture.detectChanges();
+  });
+
+  it('should be created', () => {
+    expect(component).toBeTruthy();
+  });
 });

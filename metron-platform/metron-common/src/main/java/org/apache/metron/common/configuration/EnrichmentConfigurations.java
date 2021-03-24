@@ -26,7 +26,19 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Allows for retrieval and update of enrichment configurations. Some fields are pulled from
+ * global config and provided here for convenience.
+ */
 public class EnrichmentConfigurations extends Configurations {
+  // Writer batch params
+  public static final Integer DEFAULT_KAFKA_BATCH_SIZE = 15;
+  public static final String BATCH_SIZE_CONF = "enrichment.writer.batchSize";
+  public static final String BATCH_TIMEOUT_CONF = "enrichment.writer.batchTimeout";
+  // Enrichment list table params - assumes HBase implementation
+  public static final String TABLE_PROVIDER = "enrichment.list.hbase.provider.impl";
+  public static final String TABLE_NAME = "enrichment.list.hbase.table";
+  public static final String COLUMN_FAMILY = "enrichment.list.hbase.cf";
 
   public SensorEnrichmentConfig getSensorEnrichmentConfig(String sensorType) {
     return (SensorEnrichmentConfig) getConfigurations().get(getKey(sensorType));
@@ -49,6 +61,33 @@ public class EnrichmentConfigurations extends Configurations {
     getConfigurations().remove(getKey(sensorType));
   }
 
+  /**
+   * Pulled from global config.
+   * Note: enrichment writes out to 1 kafka topic, so it is not pulling this config by sensor.
+   *
+   * @return batch size for writing to kafka
+   * @see org.apache.metron.common.configuration.EnrichmentConfigurations#BATCH_SIZE_CONF
+   */
+  public int getBatchSize() {
+    return getAs(BATCH_SIZE_CONF, getGlobalConfig(true), DEFAULT_KAFKA_BATCH_SIZE, Integer.class);
+  }
+
+  /**
+   * Pulled from global config
+   * Note: enrichment writes out to 1 kafka topic, so it is not pulling this config by sensor.
+   *
+   * @return batch timeout for writing to kafka
+   * @see org.apache.metron.common.configuration.EnrichmentConfigurations#BATCH_TIMEOUT_CONF
+   */
+  public int getBatchTimeout() {
+    return getAs(BATCH_TIMEOUT_CONF, getGlobalConfig(true), 0, Integer.class);
+  }
+
+  /**
+   * Gets the sensor names that have associated enrichments.
+   *
+   * @return List of sensor names
+   */
   public List<String> getTypes() {
     List<String> ret = new ArrayList<>();
     for(String keyedSensor : getConfigurations().keySet()) {
@@ -62,4 +101,5 @@ public class EnrichmentConfigurations extends Configurations {
   public static String getKey(String sensorType) {
     return ConfigurationType.ENRICHMENT.getTypeName() + "." + sensorType;
   }
+
 }

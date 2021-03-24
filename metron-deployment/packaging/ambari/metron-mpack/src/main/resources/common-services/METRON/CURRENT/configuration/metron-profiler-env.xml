@@ -57,8 +57,32 @@
       <type>value-list</type>
       <entries>
         <entry>
-          <value>DAYS</value>
+          <value>HOURS</value>
         </entry>
+        <entry>
+          <value>MINUTES</value>
+        </entry>
+        <entry>
+          <value>SECONDS</value>
+        </entry>
+      </entries>
+      <selection-cardinality>1</selection-cardinality>
+    </value-attributes>
+  </property>
+  <property>
+    <name>profiler_window_duration</name>
+    <value>30</value>
+    <description>The duration of each profile window. This value should be defined along with profiler.window.duration.units</description>
+    <display-name>Window Duration</display-name>
+  </property>
+  <property>
+    <name>profiler_window_units</name>
+    <value>SECONDS</value>
+    <description>The units used to specify the profiler.window.duration. This value should be defined along with profiler.window.duration.</description>
+    <display-name>Window Units</display-name>
+    <value-attributes>
+      <type>value-list</type>
+      <entries>
         <entry>
           <value>HOURS</value>
         </entry>
@@ -71,7 +95,6 @@
       </entries>
       <selection-cardinality>1</selection-cardinality>
     </value-attributes>
-
   </property>
   <property>
     <name>profiler_ttl</name>
@@ -104,8 +127,54 @@
       </entries>
       <selection-cardinality>1</selection-cardinality>
     </value-attributes>
-
-
+  </property>
+  <property>
+    <name>profiler_window_lag</name>
+    <value>1</value>
+    <description>The maximum time lag for timestamps. Timestamps cannot arrive out-of-order by more than this amount.</description>
+    <display-name>Window Time Lag</display-name>
+  </property>
+  <property>
+    <name>profiler_window_lag_units</name>
+    <value>MINUTES</value>
+    <description>The units used to specify the Event Time Lag.</description>
+    <display-name>Window Lag Units</display-name>
+    <value-attributes>
+      <type>value-list</type>
+      <entries>
+        <entry>
+          <value>HOURS</value>
+        </entry>
+        <entry>
+          <value>MINUTES</value>
+        </entry>
+        <entry>
+          <value>SECONDS</value>
+        </entry>
+      </entries>
+      <selection-cardinality>1</selection-cardinality>
+    </value-attributes>
+  </property>
+  <property>
+    <name>profiler_topology_message_timeout_secs</name>
+    <description>The maximum amount of time a message has to complete before it is considered failed.</description>
+    <display-name>Profiler Topology Message Timeout</display-name>
+    <value>900</value>
+  </property>
+  <property>
+    <name>profiler_topology_max_spout_pending</name>
+    <description>Profiler Topology Spout Max Pending Tuples</description>
+    <display-name>Spout Max Pending Tuples</display-name>
+    <value/>
+    <value-attributes>
+        <empty-value-valid>true</empty-value-valid>
+    </value-attributes>
+  </property>
+  <property>
+    <name>profiler_max_routes_per_bolt</name>
+    <value>100000</value>
+    <description>The max number of routes allowed per bolt. The number of routes increases as the number of profiles and entities increases.</description>
+    <display-name>Max Routes Per Bolt</display-name>
   </property>
   <property>
     <name>profiler_hbase_table</name>
@@ -143,13 +212,55 @@
   <property>
     <name>profiler_topology_workers</name>
     <value>1</value>
-    <description>The profiler storm topology workers</description>
-    <display-name>Number of Workers</display-name>
+    <description>Number of worker processes to create across all machines in the cluster.</description>
+    <display-name>Number of Worker Processes</display-name>
+  </property>
+  <property>
+    <name>profiler_spout_parallelism</name>
+    <value>1</value>
+    <description>The spout parallelism hint; initial number of executors (threads).</description>
+    <display-name>Spout Parallelism Hint</display-name>
+  </property>
+  <property>
+    <name>profiler_splitter_parallelism</name>
+    <value>1</value>
+    <description>The profile splitter parallelism hint; initial number of executors (threads).</description>
+    <display-name>Splitter Parallelism Hint</display-name>
+  </property>
+  <property>
+    <name>profiler_builder_parallelism</name>
+    <value>1</value>
+    <description>The profile builder parallelism hint; initial number of executors (threads).</description>
+    <display-name>Builder Parallelism Hint</display-name>
+  </property>
+  <property>
+    <name>profiler_hbase_writer_parallelism</name>
+    <value>1</value>
+    <description>The HBase writer parallelism hint; initial number of executors (threads).</description>
+    <display-name>HBase Writer Parallelism Hint</display-name>
+  </property>
+  <property>
+    <name>profiler_kafka_writer_parallelism</name>
+    <value>1</value>
+    <description>The Kafka writer parallelism hint; initial number of executors (threads).</description>
+    <display-name>Kafka Writer Parallelism Hint</display-name>
   </property>
   <property>
     <name>profiler_acker_executors</name>
     <value>1</value>
-    <description>The profiler storm topology acker executors</description>
+    <description>Number of threads dedicated to tuple acking. Should be equal to the number of partitions in the inbound Kafka topic.</description>
     <display-name>Number of Acker Executors</display-name>
+  </property>
+  <property>
+    <name>profiler_kafka_writer_batch_size</name>
+    <value>15</value>
+    <description>The number of records to batch when writing to Kakfa.</description>
+    <display-name>Kafka Writer Batch Size</display-name>
+  </property>
+  <property>
+    <name>profiler_kafka_writer_batch_timeout</name>
+    <value>0</value>
+    <description>The timeout in milliseconds after which a batch will be written to Kafka, even if the batch size has not been met.  If unspecified, or set to `0`, this defaults to a system-determined duration.</description>
+    <display-name>Kafka Writer Batch Timeout</display-name>
   </property>
 </configuration>

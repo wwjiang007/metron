@@ -19,10 +19,12 @@ package org.apache.metron.common.configuration;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.metron.TestConstants;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class SensorParserConfigTest {
 
@@ -30,12 +32,13 @@ public class SensorParserConfigTest {
   public void testSerDe() throws IOException {
     for(File parserConfig : new File(new File(TestConstants.PARSER_CONFIGS_PATH), "parsers").listFiles()) {
       SensorParserConfig config = null;
-      try (BufferedReader br = new BufferedReader(new FileReader(parserConfig))) {
+      try (BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(parserConfig), StandardCharsets.UTF_8))) {
         String parserStr = IOUtils.toString(br);
-        config = SensorParserConfig.fromBytes(parserStr.getBytes());
+        config = SensorParserConfig.fromBytes(parserStr.getBytes(StandardCharsets.UTF_8));
       }
-      SensorParserConfig config2 = SensorParserConfig.fromBytes(config.toJSON().getBytes());
-      Assert.assertEquals(config2, config);
+      SensorParserConfig config2 = SensorParserConfig.fromBytes(config.toJSON().getBytes(
+          StandardCharsets.UTF_8));
+      assertEquals(config2, config);
     }
   }
 }

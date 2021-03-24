@@ -25,13 +25,13 @@ import org.apache.metron.common.utils.JSONUtils;
 import org.apache.metron.stellar.dsl.Context;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 import java.util.List;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 
 public class DefaultMessageRouterTest {
 
@@ -54,6 +54,17 @@ public class DefaultMessageRouterTest {
   @Multiline
   private String inputTwo;
   private JSONObject messageTwo;
+
+  /**
+   * {
+   *   "ip_src_addr": "10.0.0.1",
+   *   "value": "22",
+   *   "timestamp": 1531250226659
+   * }
+   */
+  @Multiline
+  private String inputWithTimestamp;
+  private JSONObject messageWithTimestamp;
 
   /**
    * {
@@ -175,6 +186,23 @@ public class DefaultMessageRouterTest {
   @Multiline
   private String goodAndBad;
 
+  /**
+   * {
+   *   "profiles": [
+   *      {
+   *        "profile": "profile-one",
+   *        "foreach": "ip_src_addr",
+   *        "init":   { "x": "0" },
+   *        "update": { "x": "x + 1" },
+   *        "result": "x"
+   *      }
+   *   ],
+   *   "timestampField": "timestamp"
+   * }
+   */
+  @Multiline
+  private String profileWithEventTime;
+
   private DefaultMessageRouter router;
   private Context context;
 
@@ -186,13 +214,14 @@ public class DefaultMessageRouterTest {
     return JSONUtils.INSTANCE.load(json, ProfilerConfig.class);
   }
 
-  @Before
+  @BeforeEach
   public void setup() throws Exception {
     this.router = new DefaultMessageRouter(Context.EMPTY_CONTEXT());
     this.context = Context.EMPTY_CONTEXT();
     JSONParser parser = new JSONParser();
     this.messageOne = (JSONObject) parser.parse(inputOne);
     this.messageTwo = (JSONObject) parser.parse(inputTwo);
+    this.messageWithTimestamp = (JSONObject) parser.parse(inputWithTimestamp);
   }
 
   @Test
@@ -267,5 +296,31 @@ public class DefaultMessageRouterTest {
     MessageRoute route1 = routes.get(0);
     assertEquals("good-profile", route1.getProfileDefinition().getProfile());
     assertEquals(messageOne.get("ip_src_addr"), route1.getEntity());
+  }
+
+  /**
+   *
+   */
+  @Test
+  public void testMessageWithTimestamp() throws Exception {
+    List<MessageRoute> routes = router.route(messageWithTimestamp, createConfig(profileWithEventTime), context);
+
+    assertEquals(1, routes.size());
+    MessageRoute route1 = routes.get(0);
+    assertEquals("profile-one", route1.getProfileDefinition().getProfile());
+    assertEquals(messageWithTimestamp.get("ip_src_addr"), route1.getEntity());
+    assertEquals(messageWithTimestamp.get("timestamp"), route1.getTimestamp());
+  }
+
+  /**
+   * If the timestamp of a message cannot be determined, it should not be routed.
+   *
+   * <p>This might happen when using event time and the message is missing the timestamp field.
+   */
+  @Test
+  public void testMessageWithMissingTimestamp() throws Exception {
+    // messageOne does not contain a timestamp
+    List<MessageRoute> routes = router.route(messageOne, createConfig(profileWithEventTime), context);
+    assertEquals(0, routes.size());
   }
 }

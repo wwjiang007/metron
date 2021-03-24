@@ -21,16 +21,17 @@ package org.apache.metron.common.configuration.profiler;
 
 import com.fasterxml.jackson.databind.JsonMappingException;
 import org.adrianwalker.multilinestring.Multiline;
-import org.apache.metron.common.utils.JSONUtils;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.io.IOException;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 /**
- * Ensures that Profile definitions have the expected defaults
+ * Tests the {@link ProfileConfig} class.
+ *
+ * Ensures that profile definitions have the expected defaults
  * and can be (de)serialized to and from JSON.
  */
 public class ProfileConfigTest {
@@ -50,9 +51,26 @@ public class ProfileConfigTest {
    * The 'onlyif' field should default to 'true' when it is not specified.
    */
   @Test
-  public void testOnlyIfDefault() throws IOException {
-    ProfileConfig profile = JSONUtils.INSTANCE.load(onlyIfDefault, ProfileConfig.class);
+  public void testFromJSONWithOnlyIfDefault() throws IOException {
+    ProfileConfig profile = ProfileConfig.fromJSON(onlyIfDefault);
     assertEquals("true", profile.getOnlyif());
+  }
+
+  /**
+   * Tests serializing the Profiler configuration to JSON.
+   */
+  @Test
+  public void testToJSONWithOnlyIfDefault() throws Exception {
+
+    // setup a profiler config to serialize
+    ProfileConfig expected = ProfileConfig.fromJSON(onlyIfDefault);
+
+    // execute the test - serialize the config
+    String asJson = expected.toJSON();
+
+    // validate - deserialize to validate
+    ProfileConfig actual = ProfileConfig.fromJSON(asJson);
+    assertEquals(expected, actual);
   }
 
   /**
@@ -68,9 +86,9 @@ public class ProfileConfigTest {
   /**
    * The 'name' of the profile must be defined.
    */
-  @Test(expected = JsonMappingException.class)
-  public void testNameMissing() throws IOException {
-    JSONUtils.INSTANCE.load(nameMissing, ProfileConfig.class);
+  @Test
+  public void testFromJSONWithNameMissing() {
+    assertThrows(JsonMappingException.class, () -> ProfileConfig.fromJSON(nameMissing));
   }
 
   /**
@@ -86,9 +104,9 @@ public class ProfileConfigTest {
   /**
    * The 'foreach' field must be defined.
    */
-  @Test(expected = JsonMappingException.class)
-  public void testForeachMissing() throws IOException {
-    JSONUtils.INSTANCE.load(foreachMissing, ProfileConfig.class);
+  @Test
+  public void testFromJSONWithForeachMissing() {
+    assertThrows(JsonMappingException.class, () -> ProfileConfig.fromJSON(foreachMissing));
   }
 
   /**
@@ -104,9 +122,9 @@ public class ProfileConfigTest {
   /**
    * The 'result' field must be defined.
    */
-  @Test(expected = JsonMappingException.class)
-  public void testResultMissing() throws IOException {
-    JSONUtils.INSTANCE.load(resultMissing, ProfileConfig.class);
+  @Test
+  public void testFromJSONWithResultMissing() {
+    assertThrows(JsonMappingException.class, () -> ProfileConfig.fromJSON(resultMissing));
   }
 
   /**
@@ -123,9 +141,9 @@ public class ProfileConfigTest {
   /**
    * The 'result' field must contain the 'profile' expression used to store the profile measurement.
    */
-  @Test(expected = JsonMappingException.class)
-  public void testResultMissingProfileExpression() throws IOException {
-    JSONUtils.INSTANCE.load(resultMissingProfileExpression, ProfileConfig.class);
+  @Test
+  public void testFromJSONWithResultMissingProfileExpression() {
+    assertThrows(JsonMappingException.class, () -> ProfileConfig.fromJSON(resultMissingProfileExpression));
   }
 
   /**
@@ -144,12 +162,29 @@ public class ProfileConfigTest {
    * the 'profile' expression used to store the profile measurement.
    */
   @Test
-  public void testResultWithExpression() throws IOException {
-    ProfileConfig profile = JSONUtils.INSTANCE.load(resultWithExpression, ProfileConfig.class);
+  public void testFromJSONWithResultWithExpression() throws IOException {
+    ProfileConfig profile = ProfileConfig.fromJSON(resultWithExpression);
     assertEquals("2 + 2", profile.getResult().getProfileExpressions().getExpression());
 
     // no triage expressions expected
     assertEquals(0, profile.getResult().getTriageExpressions().getExpressions().size());
+  }
+
+  /**
+   * Tests serializing the Profiler configuration to JSON.
+   */
+  @Test
+  public void testToJSONWithResultWithExpression() throws Exception {
+
+    // setup a profiler config to serialize
+    ProfileConfig expected = ProfileConfig.fromJSON(resultWithExpression);
+
+    // execute the test - serialize the config
+    String asJson = expected.toJSON();
+
+    // validate - deserialize to validate
+    ProfileConfig actual = ProfileConfig.fromJSON(asJson);
+    assertEquals(expected, actual);
   }
 
   /**
@@ -169,12 +204,29 @@ public class ProfileConfigTest {
    * The result's 'triage' field is optional.
    */
   @Test
-  public void testResultWithProfileOnly() throws IOException {
-    ProfileConfig profile = JSONUtils.INSTANCE.load(resultWithProfileOnly, ProfileConfig.class);
+  public void testFromJSONWithResultWithProfileOnly() throws IOException {
+    ProfileConfig profile = ProfileConfig.fromJSON(resultWithProfileOnly);
     assertEquals("2 + 2", profile.getResult().getProfileExpressions().getExpression());
 
     // no triage expressions expected
     assertEquals(0, profile.getResult().getTriageExpressions().getExpressions().size());
+  }
+
+  /**
+   * Tests serializing the Profiler configuration to JSON.
+   */
+  @Test
+  public void testToJSONWithProfileOnly() throws Exception {
+
+    // setup a profiler config to serialize
+    ProfileConfig expected = ProfileConfig.fromJSON(resultWithProfileOnly);
+
+    // execute the test - serialize the config
+    String asJson = expected.toJSON();
+
+    // validate - deserialize to validate
+    ProfileConfig actual = ProfileConfig.fromJSON(asJson);
+    assertEquals(expected, actual);
   }
 
   /**
@@ -198,10 +250,28 @@ public class ProfileConfigTest {
    * The result's 'triage' field can contain many named expressions.
    */
   @Test
-  public void testResultWithTriage() throws IOException {
-    ProfileConfig profile = JSONUtils.INSTANCE.load(resultWithTriage, ProfileConfig.class);
+  public void testFromJSONWithResultWithTriage() throws IOException {
+    ProfileConfig profile = ProfileConfig.fromJSON(resultWithTriage);
 
     assertEquals("4 + 4", profile.getResult().getTriageExpressions().getExpression("eight"));
     assertEquals("8 + 8", profile.getResult().getTriageExpressions().getExpression("sixteen"));
   }
+
+  /**
+   * Tests serializing the Profiler configuration to JSON.
+   */
+  @Test
+  public void testToJSONWithResultWithTriage() throws Exception {
+
+    // setup a profiler config to serialize
+    ProfileConfig expected = ProfileConfig.fromJSON(resultWithTriage);
+
+    // execute the test - serialize the config
+    String asJson = expected.toJSON();
+
+    // validate - deserialize to validate
+    ProfileConfig actual = ProfileConfig.fromJSON(asJson);
+    assertEquals(expected, actual);
+  }
+
 }

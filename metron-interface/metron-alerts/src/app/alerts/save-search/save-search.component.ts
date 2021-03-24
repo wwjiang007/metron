@@ -20,7 +20,9 @@ import {Router} from '@angular/router';
 
 import {SaveSearchService} from '../../service/save-search.service';
 import {SaveSearch} from '../../model/save-search';
-import {MetronDialogBox} from '../../shared/metron-dialog-box';
+import { DialogService } from 'app/service/dialog.service';
+import { ConfirmationType } from 'app/model/confirmation-type';
+import { FilteringMode } from '../alerts-list/query-builder';
 
 @Component({
   selector: 'app-save-search',
@@ -33,7 +35,7 @@ export class SaveSearchComponent implements OnInit {
 
   constructor(private router: Router,
               private saveSearchService: SaveSearchService,
-              private metronDialogBox: MetronDialogBox) {
+              private dialogService: DialogService) {
   }
 
   goBack() {
@@ -45,11 +47,14 @@ export class SaveSearchComponent implements OnInit {
   }
 
   save() {
+    const isManual = () => this.saveSearchService.queryBuilder.getFilteringMode() === FilteringMode.MANUAL;
+
     this.saveSearch.searchRequest = this.saveSearchService.queryBuilder.searchRequest;
     this.saveSearch.tableColumns = this.saveSearchService.tableColumns;
     this.saveSearch.filters = this.saveSearchService.queryBuilder.filters;
-    this.saveSearch.searchRequest.query = '';
-    
+    this.saveSearch.searchRequest.query = isManual() ? this.saveSearchService.queryBuilder.query : '';
+    this.saveSearch.isManual = isManual()
+
     this.saveSearchService.saveSearch(this.saveSearch).subscribe(() => {
       this.goBack();
     }, error => {
@@ -68,11 +73,12 @@ export class SaveSearchComponent implements OnInit {
 
   update() {
     let message = 'A Search with the name \'' + this.saveSearch.name + '\' already exist do you wish to override it?';
-    this.metronDialogBox.showConfirmationMessage(message).subscribe(result => {
-      if (result) {
+    const confirmedSubscription = this.dialogService.launchDialog(message).subscribe(action => {
+      if (action === ConfirmationType.Confirmed) {
         this.saveSearch.searchRequest = this.saveSearchService.queryBuilder.searchRequest;
         this.saveSearchService.updateSearch(this.saveSearch).subscribe(() => { this.goBack(); }, error => {});
       }
+      confirmedSubscription.unsubscribe();
     });
   }
 

@@ -21,15 +21,14 @@
 package org.apache.metron.stellar.common.utils;
 
 import com.google.common.collect.ImmutableList;
-import org.junit.Assert;
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.junit.Assert.assertEquals;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests the Serializer.
@@ -122,14 +121,15 @@ public class SerDeUtilsTest {
   }
 
   @Test
+  @SuppressWarnings("unchecked")
   public void testBloomFilter() {
     final BloomFilter<Object> expected = new BloomFilter<>(new BloomFilter.DefaultSerializer<>(), 10000, 0.01);
     expected.add("foo");
     expected.add("bar");
     byte[] raw = SerDeUtils.toBytes(expected);
     BloomFilter<Object> actual = (BloomFilter) SerDeUtils.fromBytes(raw, Object.class);
-    Assert.assertTrue(actual.mightContain("foo"));
-    Assert.assertFalse(actual.mightContain("timothy"));
+    assertTrue(actual.mightContain("foo"));
+    assertFalse(actual.mightContain("timothy"));
     assertEquals(expected, actual);
   }
 

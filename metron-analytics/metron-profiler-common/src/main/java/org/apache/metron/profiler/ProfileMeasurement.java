@@ -20,20 +20,23 @@
 
 package org.apache.metron.profiler;
 
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.metron.common.configuration.profiler.ProfileConfig;
 
+import java.io.Serializable;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Represents a single data point within a Profile.
+ * Represents a single data point within a profile.
  *
- * A Profile is effectively a time series.  To this end a Profile is composed
- * of many ProfileMeasurement values which in aggregate form a time series.
+ * <p>A profile contains many individual {@link ProfileMeasurement} values captured over a
+ * period of time.  These values in aggregate form a time series.
  */
-public class ProfileMeasurement {
+public class ProfileMeasurement implements Serializable {
 
   /**
    * The name of the profile that this measurement is associated with.
@@ -94,7 +97,7 @@ public class ProfileMeasurement {
   }
 
   public ProfileMeasurement withPeriod(long whenMillis, long periodDuration, TimeUnit periodUnits) {
-    this.withPeriod(new ProfilePeriod(whenMillis, periodDuration, periodUnits));
+    this.withPeriod(ProfilePeriod.fromTimestamp(whenMillis, periodDuration, periodUnits));
     return this;
   }
 
@@ -172,5 +175,38 @@ public class ProfileMeasurement {
 
   public void setTriageValues(Map<String, Object> triageValues) {
     this.triageValues = triageValues;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) {
+      return true;
+    }
+    if (o == null || getClass() != o.getClass()) {
+      return false;
+    }
+    ProfileMeasurement that = (ProfileMeasurement) o;
+    return new EqualsBuilder()
+            .append(profileName, that.profileName)
+            .append(entity, that.entity)
+            .append(groups, that.groups)
+            .append(period, that.period)
+            .append(definition, that.definition)
+            .append(profileValue, that.profileValue)
+            .append(triageValues, that.triageValues)
+            .isEquals();
+  }
+
+  @Override
+  public int hashCode() {
+    return new HashCodeBuilder(17, 37)
+            .append(profileName)
+            .append(entity)
+            .append(groups)
+            .append(period)
+            .append(definition)
+            .append(profileValue)
+            .append(triageValues)
+            .toHashCode();
   }
 }

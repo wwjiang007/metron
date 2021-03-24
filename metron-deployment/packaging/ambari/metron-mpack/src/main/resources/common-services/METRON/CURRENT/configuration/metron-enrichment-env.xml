@@ -18,11 +18,21 @@
   limitations under the License.
 -->
 <configuration supports_final="true">
+
+  <!--
+    enrichment adapter parameters
+  -->
   <property>
     <name>geoip_url</name>
-    <value>http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.mmdb.gz</value>
+    <value>http://geolite.maxmind.com/download/geoip/database/GeoLite2-City.tar.gz</value>
     <description>Location of the GeoIP data to load.</description>
     <display-name>GEOIP Load Datafile URL</display-name>
+  </property>
+  <property>
+    <name>asn_url</name>
+    <value>http://geolite.maxmind.com/download/geoip/database/GeoLite2-ASN.tar.gz</value>
+    <description>Location of the ASN data to load.</description>
+    <display-name>ASN Load Datafile URL</display-name>
   </property>
   <property>
     <name>enrichment_host_known_hosts</name>
@@ -33,6 +43,10 @@
       <type>content</type>
     </value-attributes>
   </property>
+
+  <!--
+    kafka parameters
+  -->
   <property>
     <name>enrichment_kafka_start</name>
     <description>Enrichment Topology Spout Offset</description>
@@ -82,6 +96,22 @@
     <display-name>Threat Intel Error Topic</display-name>
   </property>
   <property>
+    <name>enrichment_kafka_writer_batch_size</name>
+    <value>15</value>
+    <description>The number of records to batch when writing to Kakfa.</description>
+    <display-name>Kafka Writer Batch Size</display-name>
+  </property>
+  <property>
+    <name>enrichment_kafka_writer_batch_timeout</name>
+    <value>0</value>
+    <description>The timeout in milliseconds after which a batch will be written to Kafka, even if the batch size has not been met.  If unspecified, or set to `0`, this defaults to a system-determined duration.</description>
+    <display-name>Kafka Writer Batch Timeout</display-name>
+  </property>
+
+  <!--
+    hbase parameters
+  -->
+  <property>
     <name>enrichment_hbase_table</name>
     <value>enrichment</value>
     <description>The HBase table which will hold enrichment data</description>
@@ -106,6 +136,34 @@
     <display-name>HBase Table Column Family</display-name>
   </property>
   <property>
+    <name>enrichment_list_hbase_provider_impl</name>
+    <value>org.apache.metron.hbase.HTableProvider</value>
+    <description>The HBase table provider implementation to use for obtaining table references.</description>
+    <display-name>Enrichment List HBase Table Provider Implementation</display-name>
+  </property>
+  <property>
+    <name>enrichment_list_hbase_coprocessor_impl</name>
+    <value>org.apache.metron.hbase.coprocessor.EnrichmentCoprocessor</value>
+    <description>The HBase coprocessor implementation to use for managing the enrichment list.</description>
+    <display-name>Enrichment List HBase Coprocessor Implementation</display-name>
+  </property>
+  <property>
+    <name>enrichment_list_hbase_table</name>
+    <value>enrichment_list</value>
+    <description>The HBase table which will hold the list of enrichment types gathered by the enrichment coprocessor.</description>
+    <display-name>Enrichment List HBase Table</display-name>
+  </property>
+  <property>
+    <name>enrichment_list_hbase_cf</name>
+    <value>t</value>
+    <description>The HBase column family which will hold enrichment list data in HBase.</description>
+    <display-name>Enrichment List HBase Column Family</display-name>
+  </property>
+
+  <!--
+    storm common parameters
+  -->
+  <property>
     <name>enrichment_workers</name>
     <description>Number of Workers for the Enrichment Topology</description>
     <value>1</value>
@@ -129,70 +187,74 @@
   <property>
     <name>enrichment_topology_max_spout_pending</name>
     <description>Spout Max Pending Tuples for the Enrichment Topology</description>
-    <value/>
-    <display-name>Enrichment Max Pending</display-name>
+    <value>500</value>
+    <display-name>Enrichment Max Spout Pending</display-name>
     <value-attributes>
       <empty-value-valid>true</empty-value-valid>
     </value-attributes>
   </property>
+
+  <!--
+    unified topology parameters
+  -->
   <property>
-    <name>enrichment_join_cache_size</name>
-    <description>Enrichment Join Bolt Cache Max Size</description>
+    <name>unified_kafka_spout_parallelism</name>
+    <description>Kafka spout parallelism for the Unified Enrichment Topology</description>
+    <value>1</value>
+    <display-name>Unified Enrichment Spout Parallelism</display-name>
+  </property>
+  <property>
+    <name>unified_enrichment_parallelism</name>
+    <description>Enrichment parallelism for the Unified Enrichment Topology</description>
+    <value>1</value>
+    <display-name>Unified Enrichment Parallelism</display-name>
+  </property>
+  <property>
+    <name>unified_threat_intel_parallelism</name>
+    <description>Threat Intel parallelism for the Unified Enrichment Topology</description>
+    <value>1</value>
+    <display-name>Unified Threat Intel Parallelism</display-name>
+  </property>
+  <property>
+    <name>unified_kafka_writer_parallelism</name>
+    <description>Kafka writer parallelism for the Unified Enrichment Topology</description>
+    <value>1</value>
+    <display-name>Unified Kafka Writer Parallelism</display-name>
+  </property>
+  <property>
+    <name>unified_enrichment_cache_size</name>
+    <description>Enrichment max cache size for the Unified Enrichment Topology</description>
     <value>100000</value>
-    <display-name>Enrichment Join Size</display-name>
+    <display-name>Unified Enrichment Cache Size</display-name>
   </property>
   <property>
-    <name>threatintel_join_cache_size</name>
-    <description>Threat Intel Join Bolt Cache Max Size</description>
+    <name>unified_threat_intel_cache_size</name>
+    <description>Threat Intel Max Cache Size for the Unified Enrichment Topology</description>
     <value>100000</value>
-    <display-name>Threat Intel Join Size</display-name>
+    <display-name>Unified Threat Intel Cache Size</display-name>
   </property>
   <property>
-    <name>enrichment_kafka_spout_parallelism</name>
-    <description>Kafka Spout Parallelism for the Enrichment Topology</description>
+    <name>unified_enrichment_threadpool_size</name>
+    <description>Enrichment thread pool size for the Unified Enrichment Topology</description>
     <value>1</value>
-    <display-name>Enrichment Spout Parallelism</display-name>
+    <display-name>Unified Enrichment Thread Pool Size</display-name>
   </property>
   <property>
-    <name>enrichment_split_parallelism</name>
-    <description>Enrichment Split Bolt Parallelism for the Enrichment Topology</description>
-    <value>1</value>
-    <display-name>Enrichment Split Parallelism</display-name>
-  </property>
-  <property>
-    <name>enrichment_stellar_parallelism</name>
-    <description>Stellar Enrichment Bolt Parallelism for the Enrichment Topology</description>
-    <value>1</value>
-    <display-name>Stellar Enrichment Parallelism</display-name>
-  </property>
-  <property>
-    <name>enrichment_join_parallelism</name>
-    <description>Enrichment Join Bolt Parallelism for the Enrichment Topology</description>
-    <value>1</value>
-    <display-name>Enrichment Join Parallelism</display-name>
-  </property>
-  <property>
-    <name>threat_intel_split_parallelism</name>
-    <description>Threat Intel Split Bolt Parallelism for the Enrichment Topology</description>
-    <value>1</value>
-    <display-name>Threat Intel Split Parallelism</display-name>
-  </property>
-  <property>
-    <name>threat_intel_stellar_parallelism</name>
-    <description>Threat Intel Stellar Bolt Parallelism for the Enrichment Topology</description>
-    <value>1</value>
-    <display-name>Threat Intel Stellar Parallelism</display-name>
-  </property>
-  <property>
-    <name>threat_intel_join_parallelism</name>
-    <description>Threat Intel Join Bolt Parallelism for the Enrichment Topology</description>
-    <value>1</value>
-    <display-name>Threat Intel Join Parallelism</display-name>
-  </property>
-  <property>
-    <name>kafka_writer_parallelism</name>
-    <description>Kafka Writer Parallelism for the Enrichment Topology</description>
-    <value>1</value>
-    <display-name>Enrichment Kafka Writer Parallelism</display-name>
+    <name>unified_enrichment_threadpool_type</name>
+    <description>Enrichment thread pool type for the Unified Enrichment Topology</description>
+    <display-name>Unified Enrichment Thread Pool Type</display-name>
+    <value>FIXED</value>
+    <value-attributes>
+      <type>value-list</type>
+      <entries>
+        <entry>
+          <value>FIXED</value>
+        </entry>
+        <entry>
+          <value>WORK_STEALING</value>
+        </entry>
+      </entries>
+      <selection-cardinality>1</selection-cardinality>
+    </value-attributes>
   </property>
 </configuration>

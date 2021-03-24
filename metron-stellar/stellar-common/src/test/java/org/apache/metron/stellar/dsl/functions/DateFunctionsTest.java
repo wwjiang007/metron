@@ -25,15 +25,19 @@ import org.apache.metron.stellar.dsl.Context;
 import org.apache.metron.stellar.dsl.DefaultVariableResolver;
 import org.apache.metron.stellar.dsl.ParseException;
 import org.apache.metron.stellar.dsl.StellarFunctions;
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.Calendar;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.TimeZone;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
+import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Tests the DateFunctions class.
@@ -58,15 +62,15 @@ public class DateFunctionsTest {
    */
   private long AUG2016 = 1472131630748L;
 
-  @Before
+  @BeforeEach
   public void setup() {
-    variables.put("epoch", AUG2016);
+    variables.put("test_datetime", AUG2016);
     calendar = Calendar.getInstance();
   }
 
   @Test
   public void testDayOfWeek() {
-    Object result = run("DAY_OF_WEEK(epoch)");
+    Object result = run("DAY_OF_WEEK(test_datetime)");
     assertEquals(Calendar.THURSDAY, result);
   }
 
@@ -82,14 +86,14 @@ public class DateFunctionsTest {
   /**
    * If refer to variable that does not exist, expect ParseException.
    */
-  @Test(expected = ParseException.class)
+  @Test
   public void testDayOfWeekNull() {
-    Object result = run("DAY_OF_WEEK(nada)");
+    assertThrows(ParseException.class, () -> run("DAY_OF_WEEK(nada)"));
   }
 
   @Test
   public void testWeekOfMonth() {
-    Object result = run("WEEK_OF_MONTH(epoch)");
+    Object result = run("WEEK_OF_MONTH(test_datetime)");
     assertEquals(4, result);
   }
 
@@ -105,14 +109,14 @@ public class DateFunctionsTest {
   /**
    * If refer to variable that does not exist, expect ParseException.
    */
-  @Test(expected = ParseException.class)
+  @Test
   public void testWeekOfMonthNull() {
-    Object result = run("WEEK_OF_MONTH(nada)");
+    assertThrows(ParseException.class, () -> run("WEEK_OF_MONTH(nada)"));
   }
 
   @Test
   public void testMonth() {
-    Object result = run("MONTH(epoch)");
+    Object result = run("MONTH(test_datetime)");
     assertEquals(Calendar.AUGUST, result);
   }
 
@@ -128,14 +132,14 @@ public class DateFunctionsTest {
   /**
    * If refer to variable that does not exist, expect ParseException.
    */
-  @Test(expected = ParseException.class)
+  @Test
   public void testMonthNull() {
-    Object result = run("MONTH(nada)");
+    assertThrows(ParseException.class, () -> run("MONTH(nada)"));
   }
 
   @Test
   public void testYear() {
-    Object result = run("YEAR(epoch)");
+    Object result = run("YEAR(test_datetime)");
     assertEquals(2016, result);
   }
 
@@ -151,14 +155,14 @@ public class DateFunctionsTest {
   /**
    * If refer to variable that does not exist, expect ParseException.
    */
-  @Test(expected = ParseException.class)
+  @Test
   public void testYearNull() {
-    Object result = run("YEAR(nada)");
+    assertThrows(ParseException.class, () -> run("YEAR(nada)"));
   }
 
   @Test
   public void testDayOfMonth() {
-    Object result = run("DAY_OF_MONTH(epoch)");
+    Object result = run("DAY_OF_MONTH(test_datetime)");
     assertEquals(25, result);
   }
 
@@ -174,15 +178,16 @@ public class DateFunctionsTest {
   /**
    * If refer to variable that does not exist, expect ParseException.
    */
-  @Test(expected = ParseException.class)
+  @Test
   public void testDayOfMonthNull() {
-    Object result = run("DAY_OF_MONTH(nada)");
+    assertThrows(ParseException.class, () -> run("DAY_OF_MONTH(nada)"));
   }
 
   @Test
   public void testWeekOfYear() {
-    Object result = run("WEEK_OF_YEAR(epoch)");
-    assertEquals(35, result);
+    Object result = run("WEEK_OF_YEAR(test_datetime)");
+    calendar.setTimeInMillis(AUG2016);
+    assertEquals(calendar.get(Calendar.WEEK_OF_YEAR), result);
   }
 
   /**
@@ -197,14 +202,14 @@ public class DateFunctionsTest {
   /**
    * If refer to variable that does not exist, expect ParseException.
    */
-  @Test(expected = ParseException.class)
+  @Test
   public void testWeekOfYearNull() {
-    Object result = run("WEEK_OF_YEAR(nada)");
+    assertThrows(ParseException.class, () -> run("WEEK_OF_YEAR(nada)"));
   }
 
   @Test
   public void testDayOfYear() {
-    Object result = run("DAY_OF_YEAR(epoch)");
+    Object result = run("DAY_OF_YEAR(test_datetime)");
     assertEquals(238, result);
   }
 
@@ -220,8 +225,53 @@ public class DateFunctionsTest {
   /**
    * If refer to variable that does not exist, expect ParseException.
    */
-  @Test(expected = ParseException.class)
+  @Test
   public void testDayOfYearNull() {
-    Object result = run("DAY_OF_YEAR(nada)");
+    assertThrows(ParseException.class, () -> run("DAY_OF_YEAR(nada)"));
+  }
+
+  @Test
+  public void testDateFormat() {
+    Object result = run("DATE_FORMAT('EEE MMM dd yyyy hh:mm:ss zzz', test_datetime, 'EST')");
+    assertEquals("Thu Aug 25 2016 08:27:10 EST", result);
+  }
+
+  /**
+   * Test that the String returned is formatted as specified.
+   * LocalDate.parse will throw if it is not.
+   */
+  @Test
+  public void testDateFormatDefault() {
+    Object result = run("DATE_FORMAT('EEE MMM dd yyyy hh:mm:ss zzzz')");
+    DateTimeFormatter formatter = DateTimeFormatter.ofPattern("EEE MMM dd yyyy hh:mm:ss zzzz");
+    LocalDate.parse(result.toString(), formatter);
+  }
+
+  @Test
+  public void testDateFormatNow() {
+    Object result = run("DATE_FORMAT('EEE MMM dd yyyy hh:mm:ss zzz', 'GMT')");
+    assertTrue(result.toString().endsWith("GMT"));
+  }
+
+  @Test
+  public void testDateFormatDefaultTimezone() {
+    Object result = run("DATE_FORMAT('EEE MMM dd yyyy hh:mm:ss zzzz', test_datetime)");
+
+    boolean inDaylightSavings = ZoneId.of( TimeZone.getDefault().getID() )
+            .getRules().isDaylightSavings(Instant.ofEpochMilli(AUG2016) );
+    assertTrue(result.toString().endsWith(TimeZone.getDefault().getDisplayName(inDaylightSavings, 1)));
+  }
+
+  /**
+   * If refer to variable that does not exist, expect ParseException.
+   */
+  @Test
+  public void testDateFormatNull() {
+    assertThrows(ParseException.class, () -> run("DATE_FORMAT('EEE MMM dd yyyy hh:mm:ss zzz', nada, 'EST')"));
+  }
+
+  @Test
+  public void testDateFormatInvalid() {
+    assertThrows(ParseException.class, () -> run("DATE_FORMAT('INVALID DATE FORMAT', test_datetime, 'EST')"));
   }
 }
